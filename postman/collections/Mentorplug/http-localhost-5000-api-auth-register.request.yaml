@@ -1,0 +1,19 @@
+$kind: http-request
+name: http://localhost:5000/api/auth/register
+description: ""
+url: http://localhost:5000/api/auth/register
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Joy Wanjohi\",\r
+
+    \  \"email\": \"joy@mentorplug.com\",\r
+
+    \  \"password\": \"password123\",\r
+
+    \  \"role\": \"mentee\"\r
+
+    }"
+order: 1790860543550
