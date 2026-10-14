@@ -29,6 +29,38 @@ warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
+_spacy_nlp = None
+
+
+def preprocess_text(text: str) -> str:
+    """
+    Preprocesses input text using spaCy:
+    - Loads the spaCy 'en_core_web_sm' model
+    - Tokenises the input text
+    - Removes stop words and punctuation
+    - Lowercases all tokens
+    - Joins clean tokens back into a string
+    - Returns the cleaned string
+    """
+    global _spacy_nlp
+    if _spacy_nlp is None:
+        import spacy
+        _spacy_nlp = spacy.load("en_core_web_sm")
+
+    # Tokenise input text
+    doc = _spacy_nlp(text)
+
+    # Remove stop words and punctuation, lowercase all tokens
+    clean_tokens = [
+        token.text.lower()
+        for token in doc
+        if not token.is_stop and not token.is_punct and not token.is_space
+    ]
+
+    # Join clean tokens back into a string
+    return " ".join(clean_tokens)
+
+
 def main():
     # Configure UTF-8 encoding for standard I/O (especially on Windows)
     if hasattr(sys.stdin, "reconfigure"):
@@ -47,6 +79,16 @@ def main():
         if not text or not text.strip():
             raise ValueError("Input text is empty.")
 
+        # Why preprocessing improves embedding quality:
+        # Removing punctuation and non-discriminative stop words while standardizing case
+        # filters out syntactic noise. This allows the Sentence-BERT attention mechanism to
+        # focus directly on semantically meaningful domain keywords (skills, interests, goals),
+        # producing higher-quality embeddings and better similarity matching between mentors and mentees.
+        cleaned_text = preprocess_text(text)
+
+        # Fall back to raw stripped text if preprocessing leaves an empty string
+        input_text = cleaned_text if cleaned_text.strip() else text.strip()
+
         # Import SentenceTransformer (deferred so imports don't block basic checks)
         from sentence_transformers import SentenceTransformer
 
@@ -55,7 +97,7 @@ def main():
 
         # Generate embedding vector
         embedding = model.encode(
-            text.strip(),
+            input_text,
             convert_to_numpy=True,
             show_progress_bar=False
         )
