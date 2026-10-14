@@ -96,35 +96,25 @@ const runEmbeddingScript = (pythonCmd, scriptPath, inputText, timeoutMs = 30000)
 const generateEmbedding = async (inputText) => {
   const scriptPath = path.resolve(__dirname, '../../nlp/generate_embedding.py');
 
-  try {
-    return await runEmbeddingScript('python3', scriptPath, inputText, 30000);
-  } catch (err) {
-    const isNotFound = err.code === 'ENOENT' || (err.message && err.message.toLowerCase().includes('enoent'));
+  const candidates = ['python3', 'python'];
+  const venvPythonWin = path.resolve(__dirname, '../../.venv/Scripts/python.exe');
+  const venvPythonUnix = path.resolve(__dirname, '../../.venv/bin/python');
+  const venvPython = process.platform === 'win32' ? venvPythonWin : venvPythonUnix;
 
-    if (isNotFound) {
-      return await runEmbeddingScript('python', scriptPath, inputText, 30000);
-    }
+  if (fs.existsSync(venvPython)) {
+    candidates.push(venvPython);
+  }
 
-    // Try python fallback if python3 failed for other reasons (e.g. execution alias or missing packages)
+  let lastError = null;
+  for (const pythonCmd of candidates) {
     try {
-      return await runEmbeddingScript('python', scriptPath, inputText, 30000);
-    } catch (fallbackErr) {
-      // Check local virtual environment if present
-      const venvPythonWin = path.resolve(__dirname, '../../.venv/Scripts/python.exe');
-      const venvPythonUnix = path.resolve(__dirname, '../../.venv/bin/python');
-      const venvPython = process.platform === 'win32' ? venvPythonWin : venvPythonUnix;
-
-      if (fs.existsSync(venvPython)) {
-        try {
-          return await runEmbeddingScript(venvPython, scriptPath, inputText, 30000);
-        } catch (venvErr) {
-          throw new Error(`Embedding generation failed: ${fallbackErr.message}`);
-        }
-      }
-
-      throw new Error(`Embedding generation failed: ${fallbackErr.message}`);
+      return await runEmbeddingScript(pythonCmd, scriptPath, inputText, 30000);
+    } catch (err) {
+      lastError = err;
     }
   }
+
+  throw new Error(`Embedding generation failed: ${lastError?.message || 'Unknown error'}`);
 };
 
 /**
