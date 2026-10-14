@@ -1,8 +1,17 @@
 {
-  "menteeProfile": "Recent computer science graduate seeking guidance in fintech and backend development",
+  "menteeProfile": "Recent CS graduate seeking guidance in fintech and backend development using Python and Node.js",
   "mentorProfiles": [
-    {"id": 1, "text": "Software engineer with 8 years in financial technology and backend systems"},
-    {"id": 2, "text": "Mobile developer specialising in Android and iOS applications"},
-    {"id": 3, "text": "Data analyst with experience in financial modelling and SQL"}
+    {
+      "id": 1,
+      "text": "Software engineer with 8 years in financial technology and backend systems. Experienced in Python and system design."
+    },
+    {
+      "id": 2,
+      "text": "Mobile developer specialising in Android and iOS applications using Flutter and Dart."
+    },
+    {
+      "id": 3,
+      "text": "Data analyst with experience in financial modelling, SQL and business intelligence."
+    }
   ]
 }
