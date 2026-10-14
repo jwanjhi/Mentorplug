@@ -1,0 +1,9 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [
+    "./.venv/Lib/site-packages",
+    "C:/Users/wanjo/AppData/Local/Python/pythoncore-3.14-64/Lib/site-packages",
+    "C:/Users/wanjo/AppData/Roaming/Python/Python311/site-packages"
+  ]
+}
