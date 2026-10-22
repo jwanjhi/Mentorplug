@@ -3,6 +3,8 @@ import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-b
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+import GoogleAuthButton from '../components/GoogleAuthButton';
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -67,6 +69,15 @@ const Login = () => {
                     {error}
                   </Alert>
                 )}
+
+                {/* Google Sign In */}
+                <GoogleAuthButton buttonText="signin_with" />
+
+                <div className="d-flex align-items-center my-3">
+                  <hr className="flex-grow-1 border-secondary border-opacity-25 my-0" />
+                  <span className="px-3 small text-themed-secondary text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>or sign in with email</span>
+                  <hr className="flex-grow-1 border-secondary border-opacity-25 my-0" />
+                </div>
 
                 <Form onSubmit={handleSubmit}>
                   <Form.Group className="mb-3" controlId="loginEmail">

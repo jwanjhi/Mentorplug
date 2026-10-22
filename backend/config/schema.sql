@@ -12,8 +12,10 @@ CREATE TABLE account (
     "accountID" SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    "passwordHash" VARCHAR(255) NOT NULL,
+    "passwordHash" VARCHAR(255), -- NULL for OAuth-authenticated users
     role VARCHAR(50) NOT NULL CHECK (role IN ('mentor', 'mentee')),
+    "googleId" VARCHAR(255) UNIQUE,
+    "authProvider" VARCHAR(50) DEFAULT 'local',
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

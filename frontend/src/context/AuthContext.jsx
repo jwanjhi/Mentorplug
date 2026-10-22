@@ -77,6 +77,26 @@ export const AuthProvider = ({ children }) => {
     return receivedUser;
   };
 
+  // Google OAuth Login / Registration handler
+  const loginWithGoogle = async (idToken, role = null) => {
+    const res = await api.post('/auth/google', { idToken, role });
+    
+    // If backend reports new user needs role selection, return response as-is without saving session
+    if (res.data?.needsRole) {
+      return res.data;
+    }
+
+    const { token: receivedToken, user: receivedUser, isNewUser } = res.data;
+    if (receivedToken && receivedUser) {
+      localStorage.setItem('mp_token', receivedToken);
+      localStorage.setItem('mp_user', JSON.stringify(receivedUser));
+      setToken(receivedToken);
+      setUser(receivedUser);
+    }
+
+    return { user: receivedUser, isNewUser: !!isNewUser };
+  };
+
   // Logout handler
   const logout = () => {
     localStorage.removeItem('mp_token');
@@ -94,6 +114,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!token && !!user,
         login,
         register,
+        loginWithGoogle,
         logout,
         setUser,
       }}
