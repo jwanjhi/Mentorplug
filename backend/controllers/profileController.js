@@ -6,9 +6,9 @@ const pool = require('../config/db');
 /**
  * Spawns a Python child process to execute nlp/generate_embedding.py.
  * Reads text from stdin and expects a 384-dimensional JSON array on stdout.
- * Implements a 30-second timeout.
+ * Implements a 60-second timeout.
  */
-const runEmbeddingScript = (pythonCmd, scriptPath, inputText, timeoutMs = 30000) => {
+const runEmbeddingScript = (pythonCmd, scriptPath, inputText, timeoutMs = 60000) => {
   return new Promise((resolve, reject) => {
     let resolvedOrRejected = false;
     let timer = null;
@@ -90,25 +90,35 @@ const runEmbeddingScript = (pythonCmd, scriptPath, inputText, timeoutMs = 30000)
 };
 
 /**
- * Generates dense vector embedding by trying "python3" first,
- * falling back to "python" if python3 not found, and checking local venv if available.
+ * Generates dense vector embedding by checking local venv first,
+ * falling back to system python if venv not found.
  */
 const generateEmbedding = async (inputText) => {
   const scriptPath = path.resolve(__dirname, '../../nlp/generate_embedding.py');
 
-  const candidates = ['python3', 'python'];
+  const candidates = [];
   const venvPythonWin = path.resolve(__dirname, '../../.venv/Scripts/python.exe');
   const venvPythonUnix = path.resolve(__dirname, '../../.venv/bin/python');
   const venvPython = process.platform === 'win32' ? venvPythonWin : venvPythonUnix;
 
+  if (process.env.PYTHON_PATH) {
+    candidates.push(process.env.PYTHON_PATH);
+  }
   if (fs.existsSync(venvPython)) {
     candidates.push(venvPython);
   }
+  if (process.platform === 'win32') {
+    candidates.push('python', 'py');
+  } else {
+    candidates.push('python3', 'python');
+  }
+
+  const timeoutMs = parseInt(process.env.NLP_TIMEOUT_MS, 10) || 60000;
 
   let lastError = null;
   for (const pythonCmd of candidates) {
     try {
-      return await runEmbeddingScript(pythonCmd, scriptPath, inputText, 30000);
+      return await runEmbeddingScript(pythonCmd, scriptPath, inputText, timeoutMs);
     } catch (err) {
       lastError = err;
     }

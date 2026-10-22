@@ -28,6 +28,8 @@ import warnings
 warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 _spacy_nlp = None
 
@@ -45,7 +47,7 @@ def preprocess_text(text: str) -> str:
     global _spacy_nlp
     if _spacy_nlp is None:
         import spacy
-        _spacy_nlp = spacy.load("en_core_web_sm")
+        _spacy_nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
 
     # Tokenise input text
     doc = _spacy_nlp(text)
@@ -93,7 +95,10 @@ def main():
         from sentence_transformers import SentenceTransformer
 
         # Load "all-MiniLM-L6-v2" model (384-dimensional dense vectors)
-        model = SentenceTransformer("all-MiniLM-L6-v2")
+        try:
+            model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+        except Exception:
+            model = SentenceTransformer("all-MiniLM-L6-v2")
 
         # Generate embedding vector
         embedding = model.encode(

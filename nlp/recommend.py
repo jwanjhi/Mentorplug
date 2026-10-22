@@ -56,7 +56,7 @@ def preprocess_text(text: str) -> str:
     global _spacy_nlp
     if _spacy_nlp is None:
         import spacy
-        _spacy_nlp = spacy.load("en_core_web_sm")
+        _spacy_nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
 
     # Tokenise input text
     doc = _spacy_nlp(text)
@@ -146,7 +146,10 @@ def main():
 
         # Step 5: Encode profiles using SentenceTransformer ("all-MiniLM-L6-v2")
         from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer("all-MiniLM-L6-v2")
+        try:
+            model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+        except Exception:
+            model = SentenceTransformer("all-MiniLM-L6-v2")
 
         # Generate dense embeddings for mentee and all mentors
         mentee_embedding = model.encode(

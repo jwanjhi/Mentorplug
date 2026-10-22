@@ -6,9 +6,9 @@ const pool = require('../config/db');
 /**
  * Spawns nlp/recommend.py to compute cosine similarity between
  * a mentee profile and candidate mentor profiles using Sentence-BERT.
- * Passes input JSON via stdin, reads ranked JSON from stdout, and enforces 30s timeout.
+ * Passes input JSON via stdin, reads ranked JSON from stdout, and enforces 60s timeout.
  */
-const runRecommendScript = (pythonCmd, scriptPath, payloadJson, timeoutMs = 30000) => {
+const runRecommendScript = (pythonCmd, scriptPath, payloadJson, timeoutMs = 60000) => {
   return new Promise((resolve, reject) => {
     let resolvedOrRejected = false;
     let timer = null;
@@ -86,26 +86,36 @@ const runRecommendScript = (pythonCmd, scriptPath, payloadJson, timeoutMs = 3000
 };
 
 /**
- * Executes recommendation script trying python3 first, falling back to python,
- * and checking local virtualenv if available.
+ * Executes recommendation script checking local virtualenv first,
+ * falling back to system python if venv not found.
  */
 const getRecommendationsFromPython = async (payload) => {
   const scriptPath = path.resolve(__dirname, '../../nlp/recommend.py');
   const payloadJson = JSON.stringify(payload);
 
-  const candidates = ['python3', 'python'];
+  const candidates = [];
   const venvPythonWin = path.resolve(__dirname, '../../.venv/Scripts/python.exe');
   const venvPythonUnix = path.resolve(__dirname, '../../.venv/bin/python');
   const venvPython = process.platform === 'win32' ? venvPythonWin : venvPythonUnix;
 
+  if (process.env.PYTHON_PATH) {
+    candidates.push(process.env.PYTHON_PATH);
+  }
   if (fs.existsSync(venvPython)) {
     candidates.push(venvPython);
   }
+  if (process.platform === 'win32') {
+    candidates.push('python', 'py');
+  } else {
+    candidates.push('python3', 'python');
+  }
+
+  const timeoutMs = parseInt(process.env.NLP_TIMEOUT_MS, 10) || 60000;
 
   let lastError = null;
   for (const pythonCmd of candidates) {
     try {
-      return await runRecommendScript(pythonCmd, scriptPath, payloadJson, 30000);
+      return await runRecommendScript(pythonCmd, scriptPath, payloadJson, timeoutMs);
     } catch (err) {
       lastError = err;
     }
