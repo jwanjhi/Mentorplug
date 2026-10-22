@@ -3,15 +3,12 @@ import { Container, Row, Col, Button, Spinner, ProgressBar, Modal, Form, Alert }
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Avatar from '../components/Avatar';
 
 /* ── Single Mentor Card ───────────────────────────────────────────────────────── */
 const MentorCard = ({ match, onRequest }) => {
   const score = Math.round((match.similarity_score ?? 0) * 100);
   const mentor = match.mentor;
-
-  const initials = mentor?.name
-    ? mentor.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : 'MP';
 
   const skills = mentor?.profile?.skills || [];
   const interests = mentor?.profile?.interests || [];
@@ -22,7 +19,11 @@ const MentorCard = ({ match, onRequest }) => {
       {/* Top row */}
       <div className="d-flex align-items-start justify-content-between mb-3">
         <div className="d-flex align-items-center gap-3">
-          <div className="avatar-placeholder">{initials}</div>
+          <Avatar
+            avatarUrl={mentor?.profile?.avatar_url}
+            name={mentor?.name || 'Mentor'}
+            size={48}
+          />
           <div>
             <h5 className="fw-bold mb-0 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
               {mentor?.name || 'Mentor'}

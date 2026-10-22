@@ -6,14 +6,21 @@ const {
   getMyProfile,
   getProfileById
 } = require('../controllers/profileController');
+const { uploadAvatar, deleteAvatar } = require('../controllers/avatarController');
 
-// POST /api/profiles — protected by auth middleware (create or update profile)
+// POST /api/profiles — create or update profile (bio, skills, interests, experience)
 router.post('/', authMiddleware, createOrUpdateProfile);
 
-// GET /api/profiles/me — protected by auth middleware (current user's profile)
+// GET /api/profiles/me — current user's profile (must come before /:id)
 router.get('/me', authMiddleware, getMyProfile);
 
-// GET /api/profiles/:id — protected by auth middleware (mentor profile by accountID)
+// POST /api/profiles/avatar — upload / replace profile photo (multipart/form-data, field: "avatar")
+router.post('/avatar', authMiddleware, ...uploadAvatar);
+
+// DELETE /api/profiles/avatar — remove profile photo
+router.delete('/avatar', authMiddleware, deleteAvatar);
+
+// GET /api/profiles/:id — public mentor profile by accountID
 router.get('/:id', authMiddleware, getProfileById);
 
 module.exports = router;

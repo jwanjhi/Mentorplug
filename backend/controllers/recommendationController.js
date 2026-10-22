@@ -92,7 +92,7 @@ const getRecommendations = async (req, res) => {
     const { rows } = await pool.query(
       `SELECT m."matchID" AS matchid, m."mentorID", m.similarity_score, m.status,
               a.name, a.email,
-              p.bio, p.skills, p.interests, p.experience_years
+              p.bio, p.skills, p.interests, p.experience_years, p.avatar_url
        FROM   matches m
        JOIN   account a ON a."accountID" = m."mentorID"
        LEFT JOIN profiles p ON p."accountID" = m."mentorID"
@@ -109,7 +109,7 @@ const getRecommendations = async (req, res) => {
         accountID: r.mentorID,
         name: r.name,
         email: r.email,
-        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years }
+        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years, avatar_url: r.avatar_url }
       }
     }));
 
@@ -131,7 +131,7 @@ const runAndSaveRecommendations = async (req, res) => {
 
     // Get mentee profile
     const { rows: menteeRows } = await pool.query(
-      `SELECT bio, skills, interests, experience_years FROM profiles WHERE "accountID" = $1`,
+      `SELECT bio, skills, interests, experience_years, avatar_url FROM profiles WHERE "accountID" = $1`,
       [menteeID]
     );
     if (!menteeRows.length) return res.status(400).json({ error: 'Please complete your profile first before searching for mentors.' });
@@ -141,7 +141,7 @@ const runAndSaveRecommendations = async (req, res) => {
 
     // Get all mentor profiles
     const { rows: mentorRows } = await pool.query(
-      `SELECT p."accountID", p.bio, p.skills, p.interests, p.experience_years,
+      `SELECT p."accountID", p.bio, p.skills, p.interests, p.experience_years, p.avatar_url,
               a.name, a.email
        FROM   profiles p
        JOIN   account a ON a."accountID" = p."accountID"
@@ -168,6 +168,7 @@ const runAndSaveRecommendations = async (req, res) => {
          VALUES ($1, $2, $3, 'pending')
          ON CONFLICT ("menteeID", "mentorID") DO UPDATE
            SET similarity_score = EXCLUDED.similarity_score,
+           status = EXCLUDED.status,
                "createdAt"      = NOW()
          RETURNING "matchID" AS matchid, similarity_score, status`,
         [menteeID, item.id, item.score]
@@ -184,7 +185,8 @@ const runAndSaveRecommendations = async (req, res) => {
             bio:              mentor.bio,
             skills:           mentor.skills,
             interests:        mentor.interests,
-            experience_years: mentor.experience_years
+            experience_years: mentor.experience_years,
+            avatar_url:       mentor.avatar_url
           }
         }
       });
@@ -209,7 +211,7 @@ const getIncomingRequests = async (req, res) => {
     const { rows } = await pool.query(
       `SELECT m."matchID" AS matchid, m."menteeID", m.similarity_score, m.status,
               a.name, a.email,
-              p.bio, p.skills, p.interests, p.experience_years
+              p.bio, p.skills, p.interests, p.experience_years, p.avatar_url
        FROM   matches m
        JOIN   account a ON a."accountID" = m."menteeID"
        LEFT JOIN profiles p ON p."accountID" = m."menteeID"
@@ -226,7 +228,7 @@ const getIncomingRequests = async (req, res) => {
         accountID: r.menteeID,
         name: r.name,
         email: r.email,
-        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years }
+        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years, avatar_url: r.avatar_url }
       }
     }));
 

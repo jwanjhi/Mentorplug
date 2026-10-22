@@ -3,6 +3,7 @@ import { Container, Row, Col, Button, Spinner, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Avatar from '../components/Avatar';
 
 /* ── Stat Card ──────────────────────────────────────────────────────────────── */
 const StatCard = ({ label, value, sub }) => (
@@ -33,9 +34,6 @@ const StatusBadge = ({ status }) => {
 const RequestRow = ({ match, onAccept, onDecline }) => {
   const mentee = match.mentee;
   const score = Math.round((match.similarity_score ?? 0) * 100);
-  const initials = mentee?.name
-    ? mentee.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : 'ME';
 
   const skills = mentee?.profile?.skills || [];
   const interests = mentee?.profile?.interests || [];
@@ -46,7 +44,11 @@ const RequestRow = ({ match, onAccept, onDecline }) => {
       <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
         {/* Left: mentee info */}
         <div className="d-flex align-items-center gap-3">
-          <div className="avatar-placeholder" style={{ width: 48, height: 48, fontSize: '1rem' }}>{initials}</div>
+          <Avatar
+            avatarUrl={mentee?.profile?.avatar_url}
+            name={mentee?.name || 'Mentee'}
+            size={48}
+          />
           <div>
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <h6 className="fw-bold mb-0 text-themed-primary">{mentee?.name || 'Mentee'}</h6>

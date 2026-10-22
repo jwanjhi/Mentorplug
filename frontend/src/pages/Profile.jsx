@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Avatar from '../components/Avatar';
 
 /* ── Tag chip input ─────────────────────────────────────────────────────────── */
 const TagInput = ({ label, tags, setTags, placeholder }) => {
@@ -51,6 +52,7 @@ export default function Profile() {
   const [skills, setSkills] = useState([]);
   const [interests, setInterests] = useState([]);
   const [experienceYears, setExperienceYears] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,6 +68,7 @@ export default function Profile() {
         setSkills(p.skills || []);
         setInterests(p.interests || []);
         setExperienceYears(p.experience_years ?? '');
+        setAvatarUrl(p.avatar_url || null);
       } catch (err) {
         // 404 means no profile yet — that's fine
         if (err.response?.status !== 404) {
@@ -117,8 +120,17 @@ export default function Profile() {
   return (
     <Container className="py-5" style={{ maxWidth: '680px' }}>
       {/* Header */}
-      <div className="d-flex align-items-center gap-3 mb-5">
-        <div className="avatar-placeholder" style={{ width: 64, height: 64, fontSize: '1.4rem' }}>{initials}</div>
+      <div className="d-flex align-items-center gap-4 mb-5">
+        <div>
+          <Avatar
+            avatarUrl={avatarUrl}
+            name={user?.name || ''}
+            size={80}
+            editable
+            onUpload={(newUrl) => setAvatarUrl(newUrl)}
+          />
+          <p className="text-themed-secondary text-center mt-2" style={{ fontSize: '0.72rem', maxWidth: 80 }}>Click to change</p>
+        </div>
         <div>
           <h1 className="h3 fw-bolder mb-0 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>{user?.name}</h1>
           <span className="tag-gold-outline" style={{ fontSize: '0.78rem', textTransform: 'capitalize' }}>{user?.role}</span>
