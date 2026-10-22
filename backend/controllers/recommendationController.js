@@ -3,81 +3,48 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
 
-/**
- * Spawns nlp/recommend.py to compute cosine similarity between
- * a mentee profile and candidate mentor profiles using Sentence-BERT.
- * Passes input JSON via stdin, reads ranked JSON from stdout, and enforces 60s timeout.
- */
+/* ─────────────────────────────────────────────────────────────────────────────
+   NLP helper – spawns nlp/recommend.py with JSON via stdin
+   ───────────────────────────────────────────────────────────────────────────── */
 const runRecommendScript = (pythonCmd, scriptPath, payloadJson, timeoutMs = 60000) => {
   return new Promise((resolve, reject) => {
-    let resolvedOrRejected = false;
+    let settled = false;
     let timer = null;
 
-    const child = spawn(pythonCmd, [scriptPath], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
+    const child = spawn(pythonCmd, [scriptPath], { stdio: ['pipe', 'pipe', 'pipe'] });
 
     let stdoutData = '';
     let stderrData = '';
 
     if (timeoutMs > 0) {
       timer = setTimeout(() => {
-        if (!resolvedOrRejected) {
-          resolvedOrRejected = true;
-          try {
-            child.kill();
-          } catch (e) {
-            // Process may already be dead
-          }
-          reject(new Error(`Recommendation process timed out after ${timeoutMs / 1000} seconds`));
+        if (!settled) {
+          settled = true;
+          try { child.kill(); } catch (_) {}
+          reject(new Error(`Recommendation process timed out after ${timeoutMs / 1000}s`));
         }
       }, timeoutMs);
     }
 
     child.on('error', (err) => {
-      if (!resolvedOrRejected) {
-        resolvedOrRejected = true;
-        if (timer) clearTimeout(timer);
-        reject(err);
-      }
+      if (!settled) { settled = true; if (timer) clearTimeout(timer); reject(err); }
     });
-
-    child.stdout.on('data', (chunk) => {
-      stdoutData += chunk.toString();
-    });
-
-    child.stderr.on('data', (chunk) => {
-      stderrData += chunk.toString();
-    });
+    child.stdout.on('data', (c) => { stdoutData += c.toString(); });
+    child.stderr.on('data', (c) => { stderrData += c.toString(); });
 
     child.on('close', (code) => {
-      if (resolvedOrRejected) return;
-      resolvedOrRejected = true;
+      if (settled) return;
+      settled = true;
       if (timer) clearTimeout(timer);
-
-      if (code !== 0) {
-        return reject(new Error(`Recommendation script exited with code ${code}: ${stderrData || stdoutData}`));
-      }
-
+      if (code !== 0) return reject(new Error(`Script exited ${code}: ${stderrData || stdoutData}`));
       try {
         const trimmed = stdoutData.trim();
-        if (!trimmed) {
-          return reject(new Error('Recommendation process returned empty output'));
-        }
-
+        if (!trimmed) return reject(new Error('Empty output from NLP script'));
         const parsed = JSON.parse(trimmed);
-        if (parsed.error) {
-          return reject(new Error(parsed.error));
-        }
-
-        if (!Array.isArray(parsed)) {
-          return reject(new Error('Expected JSON array of recommendations from NLP script'));
-        }
-
+        if (parsed.error) return reject(new Error(parsed.error));
+        if (!Array.isArray(parsed)) return reject(new Error('Expected JSON array from NLP script'));
         resolve(parsed);
-      } catch (parseErr) {
-        reject(new Error(`Failed to parse recommendation output: ${parseErr.message}`));
-      }
+      } catch (e) { reject(new Error(`Parse error: ${e.message}`)); }
     });
 
     child.stdin.write(payloadJson);
@@ -85,48 +52,27 @@ const runRecommendScript = (pythonCmd, scriptPath, payloadJson, timeoutMs = 6000
   });
 };
 
-/**
- * Executes recommendation script checking local virtualenv first,
- * falling back to system python if venv not found.
- */
 const getRecommendationsFromPython = async (payload) => {
   const scriptPath = path.resolve(__dirname, '../../nlp/recommend.py');
   const payloadJson = JSON.stringify(payload);
+  const venvPython = process.platform === 'win32'
+    ? path.resolve(__dirname, '../../.venv/Scripts/python.exe')
+    : path.resolve(__dirname, '../../.venv/bin/python');
 
   const candidates = [];
-  const venvPythonWin = path.resolve(__dirname, '../../.venv/Scripts/python.exe');
-  const venvPythonUnix = path.resolve(__dirname, '../../.venv/bin/python');
-  const venvPython = process.platform === 'win32' ? venvPythonWin : venvPythonUnix;
-
-  if (process.env.PYTHON_PATH) {
-    candidates.push(process.env.PYTHON_PATH);
-  }
-  if (fs.existsSync(venvPython)) {
-    candidates.push(venvPython);
-  }
-  if (process.platform === 'win32') {
-    candidates.push('python', 'py');
-  } else {
-    candidates.push('python3', 'python');
-  }
+  if (process.env.PYTHON_PATH) candidates.push(process.env.PYTHON_PATH);
+  if (fs.existsSync(venvPython)) candidates.push(venvPython);
+  candidates.push(...(process.platform === 'win32' ? ['python', 'py'] : ['python3', 'python']));
 
   const timeoutMs = parseInt(process.env.NLP_TIMEOUT_MS, 10) || 60000;
-
-  let lastError = null;
-  for (const pythonCmd of candidates) {
-    try {
-      return await runRecommendScript(pythonCmd, scriptPath, payloadJson, timeoutMs);
-    } catch (err) {
-      lastError = err;
-    }
+  let lastError;
+  for (const cmd of candidates) {
+    try { return await runRecommendScript(cmd, scriptPath, payloadJson, timeoutMs); }
+    catch (e) { lastError = e; }
   }
-
-  throw new Error(`Recommendation failed: ${lastError?.message || 'Unknown error'}`);
+  throw new Error(`NLP recommendation failed: ${lastError?.message || 'Unknown error'}`);
 };
 
-/**
- * Concatenates bio, skills, and interests into a clean text string.
- */
 const formatProfileText = (profile) => {
   const bio = (profile.bio || '').trim();
   const skills = Array.isArray(profile.skills) ? profile.skills.join(', ') : '';
@@ -134,134 +80,222 @@ const formatProfileText = (profile) => {
   return `${bio} ${skills} ${interests}`.trim();
 };
 
-/**
- * GET /api/recommendations
- * Protected by auth middleware, mentee only.
- * Matches authenticated mentee against candidate mentors using SBERT semantic similarity.
- */
+/* ─────────────────────────────────────────────────────────────────────────────
+   GET /api/recommendations
+   Returns existing saved matches for the authenticated mentee (no NLP run).
+   ───────────────────────────────────────────────────────────────────────────── */
 const getRecommendations = async (req, res) => {
   try {
-    // 1. Check req.user.role is "mentee" — return 403 if not
-    if (req.user?.role !== 'mentee') {
-      return res.status(403).json({ message: 'Access denied: mentees only' });
-    }
+    if (req.user?.role !== 'mentee') return res.status(403).json({ error: 'Mentees only' });
+    const menteeID = req.user.accountID;
 
-    const menteeAccountID = req.user?.accountID;
-    if (!menteeAccountID) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
+    const { rows } = await pool.query(
+      `SELECT m."matchID" AS matchid, m."mentorID", m.similarity_score, m.status,
+              a.name, a.email,
+              p.bio, p.skills, p.interests, p.experience_years
+       FROM   matches m
+       JOIN   account a ON a."accountID" = m."mentorID"
+       LEFT JOIN profiles p ON p."accountID" = m."mentorID"
+       WHERE  m."menteeID" = $1
+       ORDER  BY m.similarity_score DESC`,
+      [menteeID]
+    );
 
-    // 2. Get the authenticated mentee's profile from profiles table
-    const menteeProfileQuery = `
-      SELECT "profileID", "accountID", bio, skills, interests, experience_years, embedding
-      FROM profiles
-      WHERE "accountID" = $1
-    `;
-    const menteeProfileResult = await pool.query(menteeProfileQuery, [menteeAccountID]);
+    const matches = rows.map((r) => ({
+      matchid: r.matchid,
+      similarity_score: r.similarity_score,
+      status: r.status,
+      mentor: {
+        accountID: r.mentorID,
+        name: r.name,
+        email: r.email,
+        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years }
+      }
+    }));
 
-    // Return 400 "Please complete your profile first" if no profile found
-    if (menteeProfileResult.rows.length === 0) {
-      return res.status(400).json({ message: 'Please complete your profile first' });
-    }
+    return res.status(200).json({ matches });
+  } catch (err) {
+    console.error('getRecommendations error:', err);
+    return res.status(500).json({ error: 'Server error', detail: err.message });
+  }
+};
 
-    const menteeProfile = menteeProfileResult.rows[0];
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /api/recommendations
+   Runs NLP matching and saves all ranked matches to the DB.
+   ───────────────────────────────────────────────────────────────────────────── */
+const runAndSaveRecommendations = async (req, res) => {
+  try {
+    if (req.user?.role !== 'mentee') return res.status(403).json({ error: 'Mentees only' });
+    const menteeID = req.user.accountID;
 
-    // 3. Concatenate mentee's bio + skills + interests into one text string
-    const menteeText = formatProfileText(menteeProfile);
-    if (!menteeText) {
-      return res.status(400).json({ message: 'Please complete your profile first' });
-    }
+    // Get mentee profile
+    const { rows: menteeRows } = await pool.query(
+      `SELECT bio, skills, interests, experience_years FROM profiles WHERE "accountID" = $1`,
+      [menteeID]
+    );
+    if (!menteeRows.length) return res.status(400).json({ error: 'Please complete your profile first before searching for mentors.' });
 
-    // 4. Get all mentor profiles from profiles table where account role is "mentor" and "accountID" != mentee's accountID
-    const mentorsQuery = `
-      SELECT 
-        p."profileID",
-        p."accountID",
-        p.bio,
-        p.skills,
-        p.interests,
-        p.experience_years,
-        p.embedding,
-        a.name,
-        a.email,
-        a.role
-      FROM profiles p
-      JOIN account a ON p."accountID" = a."accountID"
-      WHERE a.role = 'mentor' AND p."accountID" != $1
-    `;
-    const mentorsResult = await pool.query(mentorsQuery, [menteeAccountID]);
+    const menteeText = formatProfileText(menteeRows[0]);
+    if (!menteeText) return res.status(400).json({ error: 'Please add your bio, skills, and interests to your profile first.' });
 
-    // Return 400 "No mentors available yet" if no mentors found
-    if (mentorsResult.rows.length === 0) {
-      return res.status(400).json({ message: 'No mentors available yet' });
-    }
+    // Get all mentor profiles
+    const { rows: mentorRows } = await pool.query(
+      `SELECT p."accountID", p.bio, p.skills, p.interests, p.experience_years,
+              a.name, a.email
+       FROM   profiles p
+       JOIN   account a ON a."accountID" = p."accountID"
+       WHERE  a.role = 'mentor' AND p."accountID" != $1`,
+      [menteeID]
+    );
+    if (!mentorRows.length) return res.status(400).json({ error: 'No mentors are available yet. Please check back later.' });
 
-    // 5. Concatenate each mentor's bio + skills + interests into one text string
-    const mentorMap = new Map();
-    const mentorProfilesPayload = [];
+    // Run NLP
+    const payload = {
+      menteeProfile: menteeText,
+      mentorProfiles: mentorRows.map((m) => ({ id: m.accountID, text: formatProfileText(m) }))
+    };
+    const ranked = await getRecommendationsFromPython(payload);
 
-    for (const mentor of mentorsResult.rows) {
-      mentorMap.set(mentor.accountID, mentor);
-      const text = formatProfileText(mentor);
-      mentorProfilesPayload.push({
-        id: mentor.accountID,
-        text
+    // Upsert all ranked matches into DB
+    const mentorMap = new Map(mentorRows.map((m) => [m.accountID, m]));
+    const saved = [];
+    for (const item of ranked) {
+      const mentor = mentorMap.get(item.id);
+      if (!mentor) continue;
+      const { rows: upsertRows } = await pool.query(
+        `INSERT INTO matches ("menteeID", "mentorID", similarity_score, status)
+         VALUES ($1, $2, $3, 'pending')
+         ON CONFLICT ("menteeID", "mentorID") DO UPDATE
+           SET similarity_score = EXCLUDED.similarity_score,
+               "createdAt"      = NOW()
+         RETURNING "matchID" AS matchid, similarity_score, status`,
+        [menteeID, item.id, item.score]
+      );
+      saved.push({
+        matchid:          upsertRows[0].matchid,
+        similarity_score: upsertRows[0].similarity_score,
+        status:           upsertRows[0].status,
+        mentor: {
+          accountID: mentor.accountID,
+          name:      mentor.name,
+          email:     mentor.email,
+          profile: {
+            bio:              mentor.bio,
+            skills:           mentor.skills,
+            interests:        mentor.interests,
+            experience_years: mentor.experience_years
+          }
+        }
       });
     }
 
-    // 6. Spawn nlp/recommend.py as child process with JSON payload
-    const rankedResults = await getRecommendationsFromPython({
-      menteeProfile: menteeText,
-      mentorProfiles: mentorProfilesPayload
-    });
+    return res.status(200).json({ matches: saved.sort((a, b) => b.similarity_score - a.similarity_score) });
+  } catch (err) {
+    console.error('runAndSaveRecommendations error:', err);
+    return res.status(500).json({ error: 'Recommendation engine error', detail: err.message });
+  }
+};
 
-    // 7. For the top result, save a record to matches table
-    if (rankedResults.length > 0) {
-      const topMentor = rankedResults[0];
-      const insertMatchQuery = `
-        INSERT INTO matches ("menteeID", "mentorID", similarity_score, status)
-        VALUES ($1, $2, $3, $4)
-        RETURNING "matchID", "menteeID", "mentorID", similarity_score, status, "createdAt"
-      `;
-      await pool.query(insertMatchQuery, [
-        menteeAccountID,
-        topMentor.id,
-        topMentor.score,
-        'pending'
-      ]);
+/* ─────────────────────────────────────────────────────────────────────────────
+   GET /api/recommendations/incoming
+   Returns all matches where the authenticated user is the mentor.
+   ───────────────────────────────────────────────────────────────────────────── */
+const getIncomingRequests = async (req, res) => {
+  try {
+    if (req.user?.role !== 'mentor') return res.status(403).json({ error: 'Mentors only' });
+    const mentorID = req.user.accountID;
+
+    const { rows } = await pool.query(
+      `SELECT m."matchID" AS matchid, m."menteeID", m.similarity_score, m.status,
+              a.name, a.email,
+              p.bio, p.skills, p.interests, p.experience_years
+       FROM   matches m
+       JOIN   account a ON a."accountID" = m."menteeID"
+       LEFT JOIN profiles p ON p."accountID" = m."menteeID"
+       WHERE  m."mentorID" = $1
+       ORDER  BY m."createdAt" DESC`,
+      [mentorID]
+    );
+
+    const matches = rows.map((r) => ({
+      matchid: r.matchid,
+      similarity_score: r.similarity_score,
+      status: r.status,
+      mentee: {
+        accountID: r.menteeID,
+        name: r.name,
+        email: r.email,
+        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years }
+      }
+    }));
+
+    return res.status(200).json({ matches });
+  } catch (err) {
+    console.error('getIncomingRequests error:', err);
+    return res.status(500).json({ error: 'Server error', detail: err.message });
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PATCH /api/recommendations/:id/status
+   Mentor updates match status: 'accepted' or 'rejected'.
+   ───────────────────────────────────────────────────────────────────────────── */
+const updateMatchStatus = async (req, res) => {
+  try {
+    if (req.user?.role !== 'mentor') return res.status(403).json({ error: 'Mentors only' });
+    const mentorID = req.user.accountID;
+    const matchID  = req.params.id;
+    const { status } = req.body;
+
+    if (!['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'status must be "accepted" or "rejected"' });
     }
 
-    // 8. Join ranked results with full mentor profile data from profiles and account tables
-    // 9. Return ranked list for each mentor with accountID, name, email, bio, skills, interests, experience_years, score
-    const rankedMentors = rankedResults
-      .map((item) => {
-        const mentor = mentorMap.get(item.id);
-        if (!mentor) return null;
-        return {
-          accountID: mentor.accountID,
-          name: mentor.name,
-          email: mentor.email,
-          bio: mentor.bio,
-          skills: mentor.skills,
-          interests: mentor.interests,
-          experience_years: mentor.experience_years,
-          score: item.score
-        };
-      })
-      .filter(Boolean);
+    const { rowCount } = await pool.query(
+      `UPDATE matches SET status = $1
+       WHERE "matchID" = $2 AND "mentorID" = $3`,
+      [status, matchID, mentorID]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Match not found or access denied' });
 
-    return res.status(200).json(rankedMentors);
-  } catch (error) {
-    console.error('Error in getRecommendations controller:', error);
-    return res.status(500).json({
-      message: 'Server error generating recommendations',
-      error: error.message
-    });
+    return res.status(200).json({ message: `Match ${status}` });
+  } catch (err) {
+    console.error('updateMatchStatus error:', err);
+    return res.status(500).json({ error: 'Server error', detail: err.message });
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /api/recommendations/:id/request
+   Mentee sends a (re-)request message for an existing match row.
+   ───────────────────────────────────────────────────────────────────────────── */
+const sendMatchRequest = async (req, res) => {
+  try {
+    if (req.user?.role !== 'mentee') return res.status(403).json({ error: 'Mentees only' });
+    const menteeID = req.user.accountID;
+    const matchID  = req.params.id;
+
+    const { rowCount } = await pool.query(
+      `UPDATE matches SET status = 'pending'
+       WHERE "matchID" = $1 AND "menteeID" = $2`,
+      [matchID, menteeID]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Match not found or access denied' });
+
+    return res.status(200).json({ message: 'Request sent' });
+  } catch (err) {
+    console.error('sendMatchRequest error:', err);
+    return res.status(500).json({ error: 'Server error', detail: err.message });
   }
 };
 
 module.exports = {
   getRecommendations,
+  runAndSaveRecommendations,
+  getIncomingRequests,
+  updateMatchStatus,
+  sendMatchRequest,
   getRecommendationsFromPython,
   formatProfileText
 };

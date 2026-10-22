@@ -7,6 +7,9 @@ import AppNavbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Profile from './pages/Profile';
+import Recommendations from './pages/Recommendations';
+import MentorDashboard from './pages/MentorDashboard';
 import './App.css';
 
 // Public Landing Page
@@ -185,54 +188,7 @@ const Home = () => {
   );
 };
 
-// Placeholders for subsequent protected routes
-const MentorDashboardPlaceholder = () => (
-  <Container className="py-5 text-center">
-    <div className="card-mentor-custom p-5 mx-auto" style={{ maxWidth: '600px' }}>
-      <span className="tag-gold-outline mb-2 d-inline-block">Mentor Portal</span>
-      <h2 className="mb-3 text-themed-primary">Mentor Dashboard</h2>
-      <p className="text-themed-secondary">
-        Incoming connection requests from mentees and session analytics will be displayed here.
-      </p>
-      <Button as={Link} to="/profile" className="btn-gold">
-        Edit My Mentor Profile
-      </Button>
-    </div>
-  </Container>
-);
-
-const RecommendationsPlaceholder = () => (
-  <Container className="py-5 text-center">
-    <div className="card-mentor-custom p-5 mx-auto" style={{ maxWidth: '600px' }}>
-      <span className="tag-gold-outline mb-2 d-inline-block">Mentee Portal</span>
-      <h2 className="mb-3 text-themed-primary">Your Ranked Mentors</h2>
-      <p className="text-themed-secondary">
-        Your personalized, ranked mentor matches will appear here based on your profile.
-      </p>
-      <Button as={Link} to="/profile" className="btn-gold">
-        Update Bio &amp; Skills Profile
-      </Button>
-    </div>
-  </Container>
-);
-
-const ProfilePlaceholder = () => {
-  const { user } = useAuth();
-  return (
-    <Container className="py-5 text-center">
-      <div className="card-mentor-custom p-5 mx-auto" style={{ maxWidth: '600px' }}>
-        <span className="tag-gold-outline mb-2 d-inline-block">Account Profile</span>
-        <h2 className="mb-3 text-themed-primary">{user?.name}'s Profile</h2>
-        <p className="text-themed-secondary">
-          Role: <strong className="text-gold">{user?.role}</strong> &bull; {user?.email}
-        </p>
-        <p className="text-themed-secondary small">
-          Full profile management with interactive skill and interest tags is in development.
-        </p>
-      </div>
-    </Container>
-  );
-};
+// Real pages imported above — placeholder section removed
 
 function App() {
   return (
@@ -252,7 +208,7 @@ function App() {
                   path="/recommendations"
                   element={
                     <ProtectedRoute allowedRoles={['mentee']}>
-                      <RecommendationsPlaceholder />
+                      <Recommendations />
                     </ProtectedRoute>
                   }
                 />
@@ -262,7 +218,7 @@ function App() {
                   path="/mentor-dashboard"
                   element={
                     <ProtectedRoute allowedRoles={['mentor']}>
-                      <MentorDashboardPlaceholder />
+                      <MentorDashboard />
                     </ProtectedRoute>
                   }
                 />
@@ -272,7 +228,7 @@ function App() {
                   path="/profile"
                   element={
                     <ProtectedRoute>
-                      <ProfilePlaceholder />
+                      <Profile />
                     </ProtectedRoute>
                   }
                 />
