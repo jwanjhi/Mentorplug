@@ -1,0 +1,331 @@
+/* ==========================================================================
+   MentorPlug Design System & Theme Styles
+   Visual Identity: Deep Navy (#0D1B4B), Gold (#C9A84C), White & Neutral Slates
+   ========================================================================== */
+
+:root {
+  --mp-navy: #0D1B4B;
+  --mp-navy-dark: #071030;
+  --mp-navy-light: #1A2E70;
+  --mp-navy-tint: rgba(13, 27, 75, 0.05);
+
+  --mp-gold: #C9A84C;
+  --mp-gold-hover: #B5933C;
+  --mp-gold-light: #F7F3E7;
+  --mp-gold-tint: rgba(201, 168, 76, 0.14);
+
+  --mp-white: #FFFFFF;
+  --mp-slate-50: #F8FAFC;
+  --mp-slate-100: #F1F5F9;
+  --mp-slate-200: #E2E8F0;
+  --mp-slate-300: #CBD5E1;
+  --mp-slate-500: #64748B;
+  --mp-slate-700: #334155;
+  --mp-slate-900: #0F172A;
+
+  --mp-shadow-sm: 0 1px 3px rgba(13, 27, 75, 0.05);
+  --mp-shadow-md: 0 4px 14px rgba(13, 27, 75, 0.08);
+  --mp-shadow-lg: 0 10px 30px rgba(13, 27, 75, 0.12);
+
+  --mp-radius-sm: 8px;
+  --mp-radius-md: 12px;
+  --mp-radius-lg: 16px;
+  --mp-radius-pill: 50px;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Base Body Styles */
+body {
+  font-family: var(--font-sans);
+  color: var(--mp-slate-700);
+  background-color: #F8FAFC;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6, .brand-font {
+  font-family: var(--font-heading);
+  color: var(--mp-navy);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Navbar Theme */
+.navbar-mentor {
+  background: var(--mp-navy);
+  border-bottom: 3px solid var(--mp-gold);
+  box-shadow: 0 4px 20px rgba(7, 16, 48, 0.15);
+  padding: 0.85rem 0;
+  transition: all 0.25s ease;
+}
+
+.brand-text {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.45rem;
+  color: var(--mp-white) !important;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.brand-plug {
+  color: var(--mp-gold);
+}
+
+.navbar-mentor .nav-link {
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem !important;
+  border-radius: var(--mp-radius-sm);
+  transition: all 0.2s ease;
+}
+
+.navbar-mentor .nav-link:hover,
+.navbar-mentor .nav-link.active {
+  color: var(--mp-white) !important;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.navbar-mentor .nav-link.active {
+  border-bottom: 2px solid var(--mp-gold);
+}
+
+/* Buttons */
+.btn-mentor-primary {
+  background-color: var(--mp-navy);
+  color: var(--mp-white) !important;
+  border: 1px solid var(--mp-navy);
+  font-weight: 600;
+  border-radius: var(--mp-radius-md);
+  padding: 0.6rem 1.4rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(13, 27, 75, 0.15);
+}
+
+.btn-mentor-primary:hover {
+  background-color: var(--mp-navy-light);
+  border-color: var(--mp-navy-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 27, 75, 0.22);
+}
+
+.btn-mentor-gold {
+  background-color: var(--mp-gold);
+  color: var(--mp-navy-dark) !important;
+  border: 1px solid var(--mp-gold);
+  font-weight: 700;
+  border-radius: var(--mp-radius-md);
+  padding: 0.6rem 1.4rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(201, 168, 76, 0.25);
+}
+
+.btn-mentor-gold:hover {
+  background-color: var(--mp-gold-hover);
+  border-color: var(--mp-gold-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(201, 168, 76, 0.35);
+}
+
+.btn-mentor-outline {
+  background-color: transparent;
+  color: var(--mp-navy) !important;
+  border: 2px solid var(--mp-navy);
+  font-weight: 600;
+  border-radius: var(--mp-radius-md);
+  padding: 0.55rem 1.35rem;
+  transition: all 0.2s ease;
+}
+
+.btn-mentor-outline:hover {
+  background-color: var(--mp-navy);
+  color: var(--mp-white) !important;
+  transform: translateY(-1px);
+}
+
+.btn-mentor-outline-gold {
+  background-color: transparent;
+  color: var(--mp-gold) !important;
+  border: 1.5px solid var(--mp-gold);
+  font-weight: 600;
+  border-radius: var(--mp-radius-md);
+  padding: 0.55rem 1.35rem;
+  transition: all 0.2s ease;
+}
+
+.btn-mentor-outline-gold:hover {
+  background-color: var(--mp-gold);
+  color: var(--mp-navy) !important;
+}
+
+/* Cards */
+.card-mentor {
+  background: var(--mp-white);
+  border: 1px solid var(--mp-slate-200);
+  border-radius: var(--mp-radius-lg);
+  box-shadow: var(--mp-shadow-sm);
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+
+.card-mentor:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--mp-shadow-lg);
+  border-color: rgba(201, 168, 76, 0.35);
+}
+
+.card-mentor-header {
+  border-bottom: 1px solid var(--mp-slate-100);
+  background-color: var(--mp-white);
+  padding: 1.25rem 1.5rem;
+}
+
+/* Badges & Chips */
+.badge-skill {
+  background-color: var(--mp-slate-100);
+  color: var(--mp-slate-700);
+  border: 1px solid var(--mp-slate-200);
+  font-weight: 500;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--mp-radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.badge-interest {
+  background-color: var(--mp-gold-tint);
+  color: #7A5F1C;
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--mp-radius-pill);
+}
+
+.badge-role-mentor {
+  background-color: var(--mp-navy-tint);
+  color: var(--mp-navy);
+  border: 1px solid rgba(13, 27, 75, 0.2);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--mp-radius-pill);
+}
+
+.badge-role-mentee {
+  background-color: var(--mp-gold-tint);
+  color: #8C6D1F;
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--mp-radius-pill);
+}
+
+/* Similarity / Match Score Badge */
+.match-score-pill {
+  background: linear-gradient(135deg, var(--mp-navy), #1D357F);
+  color: var(--mp-gold);
+  border: 1.5px solid var(--mp-gold);
+  border-radius: var(--mp-radius-pill);
+  padding: 0.4rem 0.9rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(13, 27, 75, 0.15);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Form Controls */
+.form-mentor .form-control,
+.form-mentor .form-select {
+  border-radius: var(--mp-radius-md);
+  border: 1.5px solid var(--mp-slate-200);
+  padding: 0.65rem 0.9rem;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.form-mentor .form-control:focus,
+.form-mentor .form-select:focus {
+  border-color: var(--mp-navy);
+  box-shadow: 0 0 0 4px var(--mp-gold-tint);
+}
+
+.form-mentor label {
+  font-weight: 600;
+  color: var(--mp-navy);
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Hero Section */
+.hero-mentor {
+  background: linear-gradient(135deg, var(--mp-navy-dark) 0%, var(--mp-navy) 60%, var(--mp-navy-light) 100%);
+  color: var(--mp-white);
+  padding: 3.5rem 0 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-mentor::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(201, 168, 76, 0.15) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero-mentor h1 {
+  color: var(--mp-white);
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.hero-mentor p {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.1rem;
+}
+
+/* Footer */
+.footer-mentor {
+  background: var(--mp-navy-dark);
+  color: rgba(255, 255, 255, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: auto;
+  padding: 1.75rem 0;
+  font-size: 0.88rem;
+}
+
+.footer-mentor a {
+  color: var(--mp-gold);
+  text-decoration: none;
+}
+
+.footer-mentor a:hover {
+  text-decoration: underline;
+}
