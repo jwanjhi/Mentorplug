@@ -65,17 +65,56 @@ const MentorCard = ({ match, onRequest }) => {
 
       {/* Action */}
       <div className="mt-3">
-        <Button
-          className="btn-gold w-100"
-          onClick={() => onRequest(match)}
-          disabled={match.status === 'pending' || match.status === 'accepted'}
-        >
-          {match.status === 'accepted'
-            ? '✓ Connected'
-            : match.status === 'pending'
-            ? 'Request Sent'
-            : 'Request Match'}
-        </Button>
+        {match.status === 'accepted' ? (
+          <div>
+            <div className="d-flex align-items-center justify-content-center gap-1 mb-2 text-success fw-bold small">
+              <span>✓</span> Connected with {mentor.name}
+            </div>
+            {mentor?.profile?.whatsapp && (
+              <a
+                href={`https://wa.me/${mentor.profile.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${mentor.name}, our mentorship match on MentorPlug was accepted! Looking forward to learning from you.`)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="btn w-100 mb-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm"
+                style={{ background: '#25D366', color: '#FFFFFF', borderRadius: 'var(--mp-radius-pill)', border: 'none', padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+              >
+                <span>💬</span> Message on WhatsApp
+              </a>
+            )}
+            <a
+              href={`mailto:${mentor.email}?subject=MentorPlug%20Mentorship%20Introduction`}
+              className="btn w-100 fw-semibold d-flex align-items-center justify-content-center gap-2"
+              style={{ background: 'transparent', border: '1.5px solid var(--mp-gold)', color: 'var(--mp-gold)', borderRadius: 'var(--mp-radius-pill)', padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+            >
+              <span>✉️</span> Email Mentor
+            </a>
+            {mentor?.profile?.linkedin_url && (
+              <a
+                href={mentor.profile.linkedin_url.startsWith('http') ? mentor.profile.linkedin_url : `https://${mentor.profile.linkedin_url}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-gold small mt-2 d-block text-center text-decoration-none"
+              >
+                View LinkedIn ↗
+              </a>
+            )}
+          </div>
+        ) : match.status === 'pending' ? (
+          <Button className="btn-gold w-100" disabled style={{ opacity: 0.7, cursor: 'not-allowed' }}>
+            ⏳ Request Pending
+          </Button>
+        ) : match.status === 'rejected' ? (
+          <div className="text-center p-2 small" style={{ color: '#F87171', background: 'rgba(239,68,68,0.1)', borderRadius: 'var(--mp-radius-card)' }}>
+            Match Declined
+          </div>
+        ) : (
+          <Button
+            className="btn-gold w-100"
+            onClick={() => onRequest(match)}
+          >
+            ✦ Request Match
+          </Button>
+        )}
       </div>
     </div>
   );

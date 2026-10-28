@@ -80,7 +80,29 @@ const RequestRow = ({ match, onAccept, onDecline }) => {
           </div>
         )}
         {match.status === 'accepted' && (
-          <span className="text-themed-secondary small">✓ You are connected</span>
+          <div className="d-flex flex-column align-items-md-end gap-2">
+            <span className="text-success small fw-bold">✓ Connected</span>
+            <div className="d-flex gap-2 flex-wrap">
+              {mentee?.profile?.whatsapp && (
+                <a
+                  href={`https://wa.me/${mentee.profile.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${mentee.name}, I accepted your mentorship request on MentorPlug! Let's connect.`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-sm fw-semibold d-flex align-items-center gap-1 shadow-sm"
+                  style={{ background: '#25D366', color: '#FFFFFF', borderRadius: 'var(--mp-radius-pill)', border: 'none', padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+                >
+                  <span>💬</span> WhatsApp
+                </a>
+              )}
+              <a
+                href={`mailto:${mentee.email}?subject=MentorPlug%20Mentorship%20Session`}
+                className="btn btn-sm fw-semibold d-flex align-items-center gap-1"
+                style={{ background: 'transparent', border: '1.5px solid var(--mp-gold)', color: 'var(--mp-gold)', borderRadius: 'var(--mp-radius-pill)', padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+              >
+                <span>✉️</span> Email
+              </a>
+            </div>
+          </div>
         )}
         {match.status === 'rejected' && (
           <span style={{ color: '#F87171', fontSize: '0.85rem' }}>× Declined</span>

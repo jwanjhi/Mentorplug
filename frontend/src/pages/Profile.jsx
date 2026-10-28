@@ -52,6 +52,8 @@ export default function Profile() {
   const [skills, setSkills] = useState([]);
   const [interests, setInterests] = useState([]);
   const [experienceYears, setExperienceYears] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState(null);
 
   const [loading, setLoading] = useState(true);
@@ -68,6 +70,8 @@ export default function Profile() {
         setSkills(p.skills || []);
         setInterests(p.interests || []);
         setExperienceYears(p.experience_years ?? '');
+        setWhatsapp(p.whatsapp || '');
+        setLinkedinUrl(p.linkedin_url || '');
         setAvatarUrl(p.avatar_url || null);
       } catch (err) {
         // 404 means no profile yet — that's fine
@@ -94,6 +98,8 @@ export default function Profile() {
         skills,
         interests,
         experience_years: experienceYears === '' ? null : Number(experienceYears),
+        whatsapp: whatsapp.trim() || null,
+        linkedin_url: linkedinUrl.trim() || null,
       });
       setAlert({ type: 'success', msg: 'Your profile has been saved and your match embedding updated!' });
     } catch (err) {
@@ -181,7 +187,7 @@ export default function Profile() {
           />
 
           {/* Experience Years */}
-          <Form.Group className="mb-5">
+          <Form.Group className="mb-4">
             <Form.Label className="form-dark-label">Years of Experience</Form.Label>
             <Form.Control
               type="number"
@@ -194,6 +200,52 @@ export default function Profile() {
               style={{ maxWidth: '200px' }}
             />
           </Form.Group>
+
+          {/* Direct Communication Channels */}
+          <div className="pt-3 border-top border-secondary border-opacity-25 mb-4">
+            <h6 className="fw-bold text-themed-primary mb-1">Direct Communication Channels</h6>
+            <p className="text-themed-secondary small mb-3">
+              Your contact details are strictly private and only unlocked when a mentorship match is accepted by both parties.
+            </p>
+
+            <Row className="g-3">
+              <Col xs={12} md={6}>
+                <Form.Group>
+                  <Form.Label className="form-dark-label">
+                    WhatsApp Number
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    className="form-dark-control"
+                    placeholder="e.g. +254712345678"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                  />
+                  <Form.Text className="text-themed-secondary" style={{ fontSize: '0.75rem' }}>
+                    Used for direct 1-click WhatsApp messaging upon connection.
+                  </Form.Text>
+                </Form.Group>
+              </Col>
+
+              <Col xs={12} md={6}>
+                <Form.Group>
+                  <Form.Label className="form-dark-label">
+                    LinkedIn / Portfolio URL
+                  </Form.Label>
+                  <Form.Control
+                    type="url"
+                    className="form-dark-control"
+                    placeholder="https://linkedin.com/in/username"
+                    value={linkedinUrl}
+                    onChange={(e) => setLinkedinUrl(e.target.value)}
+                  />
+                  <Form.Text className="text-themed-secondary" style={{ fontSize: '0.75rem' }}>
+                    Optional professional profile link.
+                  </Form.Text>
+                </Form.Group>
+              </Col>
+            </Row>
+          </div>
 
           <div className="d-flex gap-3 align-items-center">
             <Button type="submit" className="btn-gold btn-lg" disabled={saving}>
