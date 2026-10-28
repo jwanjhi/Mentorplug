@@ -31,7 +31,7 @@ const StatusBadge = ({ status }) => {
 };
 
 /* ── Request Row ─────────────────────────────────────────────────────────── */
-const RequestRow = ({ match, onAccept, onDecline }) => {
+const RequestRow = ({ match, onAccept, onDecline, user }) => {
   const mentee = match.mentee;
   const score = Math.round((match.similarity_score ?? 0) * 100);
 
@@ -95,7 +95,7 @@ const RequestRow = ({ match, onAccept, onDecline }) => {
                 </a>
               )}
               <a
-                href={`mailto:${mentee.email}?subject=MentorPlug%20Mentorship%20Session`}
+                href={`mailto:${mentee.email}?subject=${encodeURIComponent(`MentorPlug Mentorship Accepted — ${user?.name || 'Mentor'}`)}&body=${encodeURIComponent(`Hi ${mentee.name},\n\nI reviewed your profile on MentorPlug and am delighted to accept your mentorship request!\n\nLet me know your availability this week so we can schedule our first introductory call to discuss your learning goals.\n\nWarm regards,\n${user?.name || 'Mentor'}`)}`}
                 className="btn btn-sm fw-semibold d-flex align-items-center gap-1"
                 style={{ background: 'transparent', border: '1.5px solid var(--mp-gold)', color: 'var(--mp-gold)', borderRadius: 'var(--mp-radius-pill)', padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
               >
@@ -279,6 +279,7 @@ export default function MentorDashboard() {
           match={match}
           onAccept={handleAccept}
           onDecline={handleDecline}
+          user={user}
         />
       ))}
     </Container>

@@ -6,7 +6,7 @@ import api from '../services/api';
 import Avatar from '../components/Avatar';
 
 /* ── Single Mentor Card ───────────────────────────────────────────────────────── */
-const MentorCard = ({ match, onRequest }) => {
+const MentorCard = ({ match, onRequest, user }) => {
   const score = Math.round((match.similarity_score ?? 0) * 100);
   const mentor = match.mentor;
 
@@ -82,7 +82,7 @@ const MentorCard = ({ match, onRequest }) => {
               </a>
             )}
             <a
-              href={`mailto:${mentor.email}?subject=MentorPlug%20Mentorship%20Introduction`}
+              href={`mailto:${mentor.email}?subject=${encodeURIComponent(`MentorPlug Mentorship Connection — ${user?.name || 'Mentee'}`)}&body=${encodeURIComponent(`Hi ${mentor.name},\n\nI am thrilled that our mentorship match on MentorPlug was confirmed!\n\nI would love to arrange a convenient time for an introductory conversation to discuss my goals and learn more about your experience.\n\nLooking forward to hearing from you!\n\nBest regards,\n${user?.name || 'Mentee'}`)}`}
               className="btn w-100 fw-semibold d-flex align-items-center justify-content-center gap-2"
               style={{ background: 'transparent', border: '1.5px solid var(--mp-gold)', color: 'var(--mp-gold)', borderRadius: 'var(--mp-radius-pill)', padding: '0.45rem 1rem', fontSize: '0.85rem' }}
             >
@@ -120,11 +120,25 @@ const MentorCard = ({ match, onRequest }) => {
   );
 };
 
-/* ── Request Modal ─────────────────────────────────────────────────────────── */
-const RequestModal = ({ show, match, onHide, onSend }) => {
+/* ── Request Modal with AI-Drafted Introduction ───────────────────────────── */
+const RequestModal = ({ show, match, onHide, onSend, user }) => {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [alert, setAlert] = useState(null);
+
+  const generateAIDraft = (m, u) => {
+    const mentorName = m?.mentor?.name?.split(' ')[0] || m?.mentor?.name || 'there';
+    const skills = m?.mentor?.profile?.skills || [];
+    const skillText = skills.length > 0 ? skills.slice(0, 2).join(' and ') : 'your area of expertise';
+    return `Hi ${mentorName}, I came across your profile and noticed your experience in ${skillText}. I would love the opportunity to connect with you on MentorPlug for mentorship and guidance on my learning path.`;
+  };
+
+  useEffect(() => {
+    if (match && show) {
+      setMessage(generateAIDraft(match, user));
+      setAlert(null);
+    }
+  }, [match, show, user]);
 
   const handleSend = async () => {
     setSending(true);
@@ -160,19 +174,29 @@ const RequestModal = ({ show, match, onHide, onSend }) => {
             {alert}
           </Alert>
         )}
-        <Form.Label className="form-dark-label">
-          Add a short message to your mentor (optional)
-        </Form.Label>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <Form.Label className="form-dark-label mb-0">
+            Introduction Message (Auto-Drafted)
+          </Form.Label>
+          <button
+            type="button"
+            className="btn btn-sm text-gold p-0"
+            style={{ fontSize: '0.78rem', textDecoration: 'none' }}
+            onClick={() => setMessage(generateAIDraft(match, user))}
+          >
+            ✨ Reset to AI Draft
+          </button>
+        </div>
         <Form.Control
           as="textarea"
           rows={4}
           className="form-dark-control"
-          placeholder="Hi, I'm interested in learning about machine learning and would love your guidance on…"
+          placeholder="Hi, I would love your guidance on..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
         />
         <p className="text-themed-secondary small mt-2 mb-0">
-          A personalised message increases your chances of getting accepted.
+          This note is delivered directly to your mentor's dashboard. You can customize it before sending.
         </p>
       </Modal.Body>
       <Modal.Footer style={{ borderTop: '1px solid var(--mp-border-subtle)', background: 'var(--mp-bg-card)', borderRadius: '0 0 var(--mp-radius-card) var(--mp-radius-card)' }}>
@@ -312,7 +336,7 @@ export default function Recommendations() {
         <Row className="g-4">
           {matches.map((match, i) => (
             <Col key={match.matchid || i} md={6} xl={4}>
-              <MentorCard match={match} onRequest={openModal} />
+              <MentorCard match={match} onRequest={openModal} user={user} />
             </Col>
           ))}
         </Row>
@@ -324,6 +348,7 @@ export default function Recommendations() {
         match={selectedMatch}
         onHide={() => setShowModal(false)}
         onSend={handleSendRequest}
+        user={user}
       />
     </Container>
   );
