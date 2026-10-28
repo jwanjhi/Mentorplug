@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -59,6 +59,56 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null); // { type: 'success'|'danger', msg }
+
+  const cvFileRef = useRef(null);
+  const [parsingCv, setParsingCv] = useState(false);
+
+  /* CV SBERT Extraction handler */
+  const handleCvUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      return setAlert({ type: 'danger', msg: 'Please select a valid PDF document (.pdf).' });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return setAlert({ type: 'danger', msg: 'File size exceeds 10MB limit.' });
+    }
+
+    const formData = new FormData();
+    formData.append('cv', file);
+
+    setParsingCv(true);
+    setAlert(null);
+    try {
+      const res = await api.post('/profiles/parse-cv', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const data = res.data.data;
+      if (data.bio) setBio(data.bio);
+      if (Array.isArray(data.skills) && data.skills.length > 0) {
+        setSkills((prev) => [...new Set([...prev, ...data.skills])]);
+      }
+      if (Array.isArray(data.interests) && data.interests.length > 0) {
+        setInterests((prev) => [...new Set([...prev, ...data.interests])]);
+      }
+      if (data.experience_years) {
+        setExperienceYears(String(data.experience_years));
+      }
+
+      setAlert({
+        type: 'success',
+        msg: `✨ We've analyzed "${file.name}" and filled in your profile! Review and adjust anything before saving.`,
+      });
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Failed to extract text from CV. Please try again.';
+      setAlert({ type: 'danger', msg });
+    } finally {
+      setParsingCv(false);
+      if (cvFileRef.current) cvFileRef.current.value = '';
+    }
+  };
 
   /* Fetch existing profile */
   useEffect(() => {
@@ -151,6 +201,50 @@ export default function Profile() {
       )}
 
       <div className="card-mentor-custom p-4 p-md-5">
+        {/* CV / Resume Auto-fill Banner using Sentence-BERT */}
+        <div
+          className="p-3 mb-4 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3"
+          style={{
+            background: 'rgba(212,175,55,0.06)',
+            border: '1.5px dashed var(--mp-gold-border)',
+            borderRadius: 'var(--mp-radius-card)',
+          }}
+        >
+          <div>
+            <div className="fw-bold text-themed-primary d-flex align-items-center gap-2 mb-1">
+              <span>📄</span> Auto-Fill with CV / Resume
+            </div>
+            <p className="text-themed-secondary small mb-0">
+              Upload your PDF resume to automatically fill in your bio, skills, and experience.
+            </p>
+          </div>
+          <div>
+            <input
+              type="file"
+              ref={cvFileRef}
+              accept=".pdf"
+              style={{ display: 'none' }}
+              onChange={handleCvUpload}
+            />
+            <Button
+              className="btn-gold"
+              size="sm"
+              style={{ whiteSpace: 'nowrap' }}
+              onClick={() => cvFileRef.current?.click()}
+              disabled={parsingCv}
+            >
+              {parsingCv ? (
+                <>
+                  <Spinner size="sm" className="me-2" />
+                  Reading resume…
+                </>
+              ) : (
+                'Upload CV (.pdf)'
+              )}
+            </Button>
+          </div>
+        </div>
+
         <Form onSubmit={handleSave}>
           {/* Bio */}
           <Form.Group className="mb-4">

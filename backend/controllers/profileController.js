@@ -1,7 +1,9 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 const pool = require('../config/db');
+const { parseCvBuffer } = require('../services/cvParserService');
 
 /**
  * Spawns a Python child process to execute nlp/generate_embedding.py.
@@ -336,9 +338,45 @@ const getProfileById = async (req, res) => {
   }
 };
 
+// In-memory upload middleware for CV files (up to 10MB)
+const cvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB cap
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Please upload a PDF document (.pdf).'), false);
+    }
+  },
+});
+
+/**
+ * POST /api/profiles/parse-cv
+ * Ingests a PDF resume, parses its text, and returns extracted bio, skills, and experience.
+ */
+const parseCv = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Please upload a PDF document.' });
+    }
+
+    const parsed = await parseCvBuffer(req.file.buffer);
+    return res.status(200).json({
+      message: 'CV analyzed successfully',
+      data: parsed,
+    });
+  } catch (err) {
+    console.error('parseCv error:', err);
+    return res.status(500).json({ error: err.message || 'Error extracting data from CV' });
+  }
+};
+
 module.exports = {
   createOrUpdateProfile,
   getMyProfile,
   getProfileById,
-  generateEmbedding
+  generateEmbedding,
+  parseCv,
+  cvUpload,
 };
