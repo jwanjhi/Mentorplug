@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Button, Spinner, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Button, Spinner, Badge, Modal } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -112,6 +112,42 @@ const RequestRow = ({ match, onAccept, onDecline, user }) => {
   );
 };
 
+/* ── Mentorship Insight Modal (Comic feature) ─────────────────────────────────── */
+const MentorshipAdviceModal = ({ show, onHide, role = 'mentor' }) => (
+  <Modal show={show} onHide={onHide} centered size="lg" contentClassName="card-glass-custom border-0 p-0 overflow-hidden">
+    <Modal.Header closeButton className="border-0 px-4 pt-4 pb-2">
+      <Modal.Title className="fw-bold text-themed-primary h5">
+        💡 Mentorship Principles for Success
+      </Modal.Title>
+    </Modal.Header>
+    <Modal.Body className="px-4 py-2">
+      <div className="text-center mb-3">
+        <img
+          src="/images/mentorship-comic.jpg"
+          alt="Mentorship wisdom comic"
+          className="img-fluid rounded"
+          style={{ maxHeight: '340px', width: 'auto', border: '1px solid var(--mp-border-subtle)', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}
+        />
+      </div>
+      <div className="p-3 mb-2" style={{ background: 'var(--mp-gold-tint)', border: '1px solid var(--mp-gold-border)', borderRadius: 'var(--mp-radius-input)' }}>
+        <h6 className="fw-bold text-gold mb-1">
+          {role === 'mentor' ? 'The Golden Rule for Mentors' : 'The Golden Rule for Mentees'}
+        </h6>
+        <p className="text-themed-primary small mb-0" style={{ lineHeight: '1.6' }}>
+          {role === 'mentor'
+            ? "Mentorship isn't downloading '20 years of unfiltered wisdom' in one breath! The most impactful mentors ask open questions, listen 70% of the time, and guide mentees to reach their own breakthroughs."
+            : "Mentorship is an active two-way partnership, not a lecture! Come prepared with specific questions, share your current blockers, and drive your own growth."}
+        </p>
+      </div>
+    </Modal.Body>
+    <Modal.Footer className="border-0 px-4 pb-4 pt-1">
+      <Button className="btn-gold" size="sm" onClick={onHide}>
+        Got It!
+      </Button>
+    </Modal.Footer>
+  </Modal>
+);
+
 /* ── Main Mentor Dashboard ─────────────────────────────────────────────────── */
 export default function MentorDashboard() {
   const { user } = useAuth();
@@ -120,6 +156,7 @@ export default function MentorDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all' | 'pending' | 'accepted'
+  const [showAdviceModal, setShowAdviceModal] = useState(false);
 
   const loadMatches = async () => {
     try {
@@ -174,21 +211,38 @@ export default function MentorDashboard() {
   }
 
   return (
-    <Container className="py-5">
-      {/* Header */}
-      <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-5">
-        <div className="d-flex align-items-center gap-3">
-          <div className="avatar-placeholder" style={{ width: 60, height: 60, fontSize: '1.3rem' }}>{initials}</div>
-          <div>
-            <span className="text-gold fw-bold text-uppercase small d-block mb-1" style={{ letterSpacing: '0.1em' }}>Mentor Portal</span>
-            <h1 className="h2 fw-bolder mb-0 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
-              {user?.name}'s Dashboard
-            </h1>
+    <div className="mentor-dashboard-page-bg py-5">
+      <Container>
+      {/* Panoramic Hero Banner with Mentor Guidance Background */}
+      <div className="hero-banner-custom hero-banner-mentor">
+        <div className="hero-banner-content">
+          <div className="d-flex align-items-center gap-3 mb-3">
+            <div className="avatar-placeholder" style={{ width: 64, height: 64, fontSize: '1.4rem' }}>{initials}</div>
+            <div>
+              <span className="tag-gold-outline mb-1 d-inline-block" style={{ fontSize: '0.72rem' }}>Mentor Portal</span>
+              <h1 className="h2 fw-bolder mb-0 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
+                Welcome, {user?.name}
+              </h1>
+            </div>
+          </div>
+          <p className="text-themed-secondary mb-3 small" style={{ lineHeight: '1.6' }}>
+            Empowering the next generation of technologists through meaningful 1-on-1 mentorship and guidance.
+          </p>
+          <div className="d-flex flex-wrap gap-2">
+            <Button as={Link} to="/profile" className="btn-gold" size="sm" style={{ whiteSpace: 'nowrap' }}>
+              Edit My Profile
+            </Button>
+            <Button
+              variant="outline-secondary"
+              className="btn-outline-gold"
+              size="sm"
+              onClick={() => setShowAdviceModal(true)}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              💡 Mentorship Principles
+            </Button>
           </div>
         </div>
-        <Button as={Link} to="/profile" className="btn-outline-gold" style={{ whiteSpace: 'nowrap' }}>
-          Edit My Profile
-        </Button>
       </div>
 
       {/* Stat Cards */}
@@ -282,6 +336,14 @@ export default function MentorDashboard() {
           user={user}
         />
       ))}
+
+      {/* Mentorship Insight Advice Modal (Comic feature) */}
+      <MentorshipAdviceModal
+        show={showAdviceModal}
+        onHide={() => setShowAdviceModal(false)}
+        role="mentor"
+      />
     </Container>
+    </div>
   );
 }

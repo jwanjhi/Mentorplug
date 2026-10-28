@@ -211,6 +211,42 @@ const RequestModal = ({ show, match, onHide, onSend, user }) => {
   );
 };
 
+/* ── Mentorship Insight Modal (Comic feature) ─────────────────────────────────── */
+const MentorshipAdviceModal = ({ show, onHide, role = 'mentee' }) => (
+  <Modal show={show} onHide={onHide} centered size="lg" contentClassName="card-glass-custom border-0 p-0 overflow-hidden">
+    <Modal.Header closeButton className="border-0 px-4 pt-4 pb-2">
+      <Modal.Title className="fw-bold text-themed-primary h5">
+        💡 Mentorship Principles for Success
+      </Modal.Title>
+    </Modal.Header>
+    <Modal.Body className="px-4 py-2">
+      <div className="text-center mb-3">
+        <img
+          src="/images/mentorship-comic.jpg"
+          alt="Mentorship wisdom comic"
+          className="img-fluid rounded"
+          style={{ maxHeight: '340px', width: 'auto', border: '1px solid var(--mp-border-subtle)', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}
+        />
+      </div>
+      <div className="p-3 mb-2" style={{ background: 'var(--mp-gold-tint)', border: '1px solid var(--mp-gold-border)', borderRadius: 'var(--mp-radius-input)' }}>
+        <h6 className="fw-bold text-gold mb-1">
+          {role === 'mentor' ? 'The Golden Rule for Mentors' : 'The Golden Rule for Mentees'}
+        </h6>
+        <p className="text-themed-primary small mb-0" style={{ lineHeight: '1.6' }}>
+          {role === 'mentor'
+            ? "Mentorship isn't downloading '20 years of unfiltered wisdom' in one breath! The most impactful mentors ask open questions, listen 70% of the time, and guide mentees to reach their own breakthroughs."
+            : "Mentorship is an active two-way partnership, not a lecture! Come prepared with specific questions, share your current blockers, and drive your own growth."}
+        </p>
+      </div>
+    </Modal.Body>
+    <Modal.Footer className="border-0 px-4 pb-4 pt-1">
+      <Button className="btn-gold" size="sm" onClick={onHide}>
+        Got It!
+      </Button>
+    </Modal.Footer>
+  </Modal>
+);
+
 /* ── Main Recommendations Page ─────────────────────────────────────────────── */
 export default function Recommendations() {
   const { user } = useAuth();
@@ -222,6 +258,7 @@ export default function Recommendations() {
 
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showAdviceModal, setShowAdviceModal] = useState(false);
 
   /* Load existing matches */
   const loadMatches = async () => {
@@ -283,23 +320,34 @@ export default function Recommendations() {
   }
 
   return (
-    <Container className="py-5">
-      {/* Page Header */}
-      <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-5">
-        <div>
-          <span className="text-gold fw-bold text-uppercase small d-block mb-1" style={{ letterSpacing: '0.1em' }}>Mentee Portal</span>
-          <h1 className="h2 fw-bolder mb-1 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
-            Your Ranked Mentors
+    <div className="recommendations-page-bg py-5">
+      <Container>
+        {/* Panoramic Hero Banner with Mentor Guidance Background */}
+        <div className="hero-banner-custom hero-banner-mentee">
+        <div className="hero-banner-content">
+          <span className="tag-gold-outline mb-2 d-inline-block">Mentee Portal</span>
+          <h1 className="h2 fw-bolder mb-2 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
+            Discover Your Ideal Mentors
           </h1>
-          <p className="text-themed-secondary mb-0">
-            Matches are ranked by AI similarity to your profile.
+          <p className="text-themed-secondary mb-3 small" style={{ lineHeight: '1.6' }}>
+            Semantic profile matching analyzes your skills, interests, and aspirations to connect you with expert guides and industry mentors.
           </p>
+          <div className="d-flex flex-wrap gap-2">
+            <Button className="btn-gold" onClick={handleRunMatch} disabled={runningMatch} style={{ whiteSpace: 'nowrap' }}>
+              {runningMatch
+                ? <><Spinner size="sm" className="me-2" />Finding matches…</>
+                : matches.length > 0 ? '↻ Refresh Matches' : '✦ Find My Mentors'}
+            </Button>
+            <Button
+              variant="outline-secondary"
+              className="btn-outline-gold"
+              onClick={() => setShowAdviceModal(true)}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              💡 Mentorship Advice
+            </Button>
+          </div>
         </div>
-        <Button className="btn-gold" onClick={handleRunMatch} disabled={runningMatch} style={{ whiteSpace: 'nowrap' }}>
-          {runningMatch
-            ? <><Spinner size="sm" className="me-2" />Finding matches…</>
-            : matches.length > 0 ? '↻ Refresh Matches' : '✦ Find My Mentors'}
-        </Button>
       </div>
 
       {/* Error */}
@@ -314,21 +362,30 @@ export default function Recommendations() {
 
       {/* Empty State */}
       {!error && matches.length === 0 && (
-        <div className="card-mentor-custom p-5 text-center" style={{ maxWidth: 560, margin: '0 auto' }}>
-          <div className="step-icon-wrap mx-auto mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </div>
-          <h4 className="fw-bold text-themed-primary mb-2">No matches yet</h4>
-          <p className="text-themed-secondary mb-4">
-            First, <Link to="/profile" className="text-gold">complete your profile</Link> with your interests and skills.<br />
-            Then click <strong className="text-gold">Find My Mentors</strong> to run the AI matching engine.
-          </p>
-          <Button className="btn-gold" onClick={handleRunMatch} disabled={runningMatch}>
-            {runningMatch ? 'Finding…' : '✦ Find My Mentors'}
-          </Button>
-        </div>
+        <Row className="justify-content-center">
+          <Col xs={12} lg={7}>
+            <div className="card-mentor-custom p-4 p-md-5 text-center">
+              <div className="step-icon-wrap mx-auto mb-3">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
+              <h4 className="fw-bold text-themed-primary mb-2">No mentor matches generated yet</h4>
+              <p className="text-themed-secondary mb-4 small">
+                First, <Link to="/profile" className="text-gold">complete your profile</Link> with your skills, interests, and bio.<br />
+                Then click <strong className="text-gold">Find My Mentors</strong> to generate your tailored recommendations.
+              </p>
+              <div className="d-flex justify-content-center gap-2">
+                <Button className="btn-gold" onClick={handleRunMatch} disabled={runningMatch}>
+                  {runningMatch ? 'Finding…' : '✦ Find My Mentors'}
+                </Button>
+                <Button variant="outline-secondary" className="btn-outline-gold" onClick={() => setShowAdviceModal(true)}>
+                  💡 View Mentorship Tips
+                </Button>
+              </div>
+            </div>
+          </Col>
+        </Row>
       )}
 
       {/* Match Cards Grid */}
@@ -350,6 +407,14 @@ export default function Recommendations() {
         onSend={handleSendRequest}
         user={user}
       />
+
+      {/* Mentorship Insight Advice Modal (Comic Feature) */}
+      <MentorshipAdviceModal
+        show={showAdviceModal}
+        onHide={() => setShowAdviceModal(false)}
+        role="mentee"
+      />
     </Container>
+    </div>
   );
 }

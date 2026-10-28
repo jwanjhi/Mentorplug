@@ -3,7 +3,6 @@ An embedding-based semantic matching system for mentor-mentee recommendation.
 
 **Student:** Wanjohi Joy Wambui | 159540 | ICS 4A
 **Supervisor:** Mr. Daniel Machanje
-**University:** Strathmore University, Nairobi, Kenya
 
 ## Tech Stack
 - Frontend: React.js

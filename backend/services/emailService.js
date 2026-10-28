@@ -75,7 +75,7 @@ const notifyMenteeMatchAccepted = async ({ menteeEmail, menteeName, mentorName, 
         ` : ''}
 
         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0 16px 0;" />
-        <p style="font-size: 12px; color: #94a3b8; text-align: center;">MentorPlug • Strathmore University</p>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center;">MentorPlug • Semantic Mentorship Platform</p>
       </div>
     `;
 
@@ -90,7 +90,7 @@ ${mentorWhatsapp ? `- WhatsApp: ${mentorWhatsapp}\n- Direct Chat: ${whatsappLink
 
 Reach out to schedule your first introductory conversation!
 
-MentorPlug • Strathmore University
+MentorPlug • Semantic Mentorship Platform
     `;
 
     await mailer.sendMail({

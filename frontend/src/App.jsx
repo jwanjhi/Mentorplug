@@ -15,8 +15,8 @@ import './App.css';
 // Public Landing Page
 const Home = () => {
   return (
-    <div className="home-page">
-      {/* 3. HERO SECTION */}
+    <div className="home-page home-page-bg">
+      {/* 3. HERO SECTION with draped background */}
       <section className="py-5" style={{ minHeight: '82vh', display: 'flex', alignItems: 'center' }}>
         <Container>
           <Row className="align-items-center gy-5">
@@ -58,9 +58,9 @@ const Home = () => {
               </div>
             </Col>
 
-            {/* HERO RIGHT SIDE (MENTOR CARD) */}
+            {/* HERO RIGHT SIDE (GLASS MENTOR CARD) */}
             <Col lg={5} className="d-flex justify-content-center">
-              <Card className="card-mentor-custom p-4 w-100" style={{ maxWidth: '440px' }}>
+              <Card className="card-glass-custom p-4 w-100" style={{ maxWidth: '440px' }}>
                 <Card.Body className="p-0">
                   {/* Top Bar: Avatar + Info + Top Right 84% Match Pill */}
                   <div className="d-flex align-items-start justify-content-between mb-3">
@@ -108,8 +108,8 @@ const Home = () => {
         </Container>
       </section>
 
-      {/* 5. HOW IT WORKS SECTION (FULL WIDTH BELOW HERO) */}
-      <section id="how-it-works" className="py-5" style={{ borderTop: '1px solid var(--mp-border-subtle)' }}>
+      {/* 5. HOW IT WORKS SECTION (FULL WIDTH BELOW HERO - DRAPED OVER) */}
+      <section id="how-it-works" className="py-5">
         <Container>
           {/* Section Header */}
           <div className="text-center mb-5">
@@ -177,7 +177,7 @@ const Home = () => {
       </section>
 
       {/* Clean, Non-Academic Footer */}
-      <footer className="py-4 text-center text-themed-secondary small border-top border-secondary border-opacity-10 mt-5">
+      <footer className="py-4 text-center text-themed-secondary small mt-4">
         <Container>
           <p className="mb-0">
             Mentor<span className="text-gold">plug</span> &bull; We match mentors to mentees.
