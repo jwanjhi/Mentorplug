@@ -174,183 +174,244 @@ export default function Profile() {
   }
 
   return (
-    <Container className="py-5" style={{ maxWidth: '680px' }}>
-      {/* Header */}
-      <div className="d-flex align-items-center gap-4 mb-5">
-        <div>
-          <Avatar
-            avatarUrl={avatarUrl}
-            name={user?.name || ''}
-            size={80}
-            editable
-            onUpload={(newUrl) => setAvatarUrl(newUrl)}
-          />
-          <p className="text-themed-secondary text-center mt-2" style={{ fontSize: '0.72rem', maxWidth: 80 }}>Click to change</p>
-        </div>
-        <div>
-          <h1 className="h3 fw-bolder mb-0 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>{user?.name}</h1>
-          <span className="tag-gold-outline" style={{ fontSize: '0.78rem', textTransform: 'capitalize' }}>{user?.role}</span>
-          <span className="text-themed-secondary small ms-2">{user?.email}</span>
-        </div>
-      </div>
-
-      {alert && (
-        <Alert variant={alert.type} className="mb-4" style={{ borderRadius: 'var(--mp-radius-card)', background: alert.type === 'success' ? 'rgba(201,168,76,0.12)' : 'rgba(220,53,69,0.12)', border: `1px solid ${alert.type === 'success' ? 'var(--mp-gold-border)' : 'rgba(220,53,69,0.4)'}`, color: alert.type === 'success' ? 'var(--mp-gold)' : '#F87171' }} onClose={() => setAlert(null)} dismissible>
-          {alert.msg}
-        </Alert>
-      )}
-
-      <div className="card-mentor-custom p-4 p-md-5">
-        {/* CV / Resume Auto-fill Banner using Sentence-BERT */}
-        <div
-          className="p-3 mb-4 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3"
-          style={{
-            background: 'rgba(212,175,55,0.06)',
-            border: '1.5px dashed var(--mp-gold-border)',
-            borderRadius: 'var(--mp-radius-card)',
-          }}
-        >
-          <div>
-            <div className="fw-bold text-themed-primary d-flex align-items-center gap-2 mb-1">
-              <span>📄</span> Auto-Fill with CV / Resume
+    <div className="profile-page-bg py-5">
+      <Container style={{ maxWidth: '1120px' }}>
+        {/* Top Identity & Resume Ingest Bar */}
+        <div className="card-glass-custom p-4 mb-4">
+          <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4">
+            {/* Left: User Identity */}
+            <div className="d-flex align-items-center gap-3">
+              <div>
+                <Avatar
+                  avatarUrl={avatarUrl}
+                  name={user?.name || ''}
+                  size={72}
+                  editable
+                  onUpload={(newUrl) => setAvatarUrl(newUrl)}
+                />
+                <p className="text-themed-secondary text-center mt-1 mb-0" style={{ fontSize: '0.68rem', maxWidth: 72 }}>
+                  Click photo
+                </p>
+              </div>
+              <div>
+                <div className="d-flex align-items-center gap-2 flex-wrap mb-1">
+                  <h1 className="h4 fw-bolder mb-0 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
+                    {user?.name}
+                  </h1>
+                  <span className="tag-gold-outline" style={{ fontSize: '0.75rem', textTransform: 'capitalize' }}>
+                    {user?.role}
+                  </span>
+                </div>
+                <span className="text-themed-secondary small">{user?.email}</span>
+              </div>
             </div>
-            <p className="text-themed-secondary small mb-0">
-              Upload your PDF resume to automatically fill in your bio, skills, and experience.
-            </p>
-          </div>
-          <div>
-            <input
-              type="file"
-              ref={cvFileRef}
-              accept=".pdf"
-              style={{ display: 'none' }}
-              onChange={handleCvUpload}
-            />
-            <Button
-              className="btn-gold"
-              size="sm"
-              style={{ whiteSpace: 'nowrap' }}
-              onClick={() => cvFileRef.current?.click()}
-              disabled={parsingCv}
+
+            {/* Right: Quick CV / Resume Auto-fill */}
+            <div
+              className="p-3 d-flex align-items-center justify-content-between gap-3 flex-grow-1 flex-md-grow-0"
+              style={{
+                background: 'rgba(212, 175, 55, 0.08)',
+                border: '1.5px dashed var(--mp-gold-border)',
+                borderRadius: 'var(--mp-radius-input)',
+                minWidth: '320px',
+              }}
             >
-              {parsingCv ? (
-                <>
-                  <Spinner size="sm" className="me-2" />
-                  Reading resume…
-                </>
-              ) : (
-                'Upload CV (.pdf)'
-              )}
-            </Button>
+              <div>
+                <div className="fw-bold text-themed-primary small d-flex align-items-center gap-2 mb-0">
+                  <span>📄</span> Auto-Fill with CV / Resume
+                </div>
+                <span className="text-themed-secondary" style={{ fontSize: '0.75rem' }}>
+                  Extracts bio, skills, and experience in 1-click.
+                </span>
+              </div>
+              <div>
+                <input
+                  type="file"
+                  ref={cvFileRef}
+                  accept=".pdf"
+                  style={{ display: 'none' }}
+                  onChange={handleCvUpload}
+                />
+                <Button
+                  className="btn-gold"
+                  size="sm"
+                  style={{ whiteSpace: 'nowrap' }}
+                  onClick={() => cvFileRef.current?.click()}
+                  disabled={parsingCv}
+                >
+                  {parsingCv ? (
+                    <>
+                      <Spinner size="sm" className="me-2" />
+                      Reading…
+                    </>
+                  ) : (
+                    'Upload PDF'
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
+
+        {alert && (
+          <Alert
+            variant={alert.type}
+            className="mb-4"
+            style={{
+              borderRadius: 'var(--mp-radius-card)',
+              background: alert.type === 'success' ? 'rgba(201,168,76,0.12)' : 'rgba(220,53,69,0.12)',
+              border: `1px solid ${alert.type === 'success' ? 'var(--mp-gold-border)' : 'rgba(220,53,69,0.4)'}`,
+              color: alert.type === 'success' ? 'var(--mp-gold)' : '#F87171',
+            }}
+            onClose={() => setAlert(null)}
+            dismissible
+          >
+            {alert.msg}
+          </Alert>
+        )}
 
         <Form onSubmit={handleSave}>
-          {/* Bio */}
-          <Form.Group className="mb-4">
-            <Form.Label className="form-dark-label">
-              {user?.role === 'mentor' ? 'About You (What you can help mentees with)' : 'About You (What you want to learn and achieve)'}
-            </Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={4}
-              className="form-dark-control"
-              placeholder={user?.role === 'mentor'
-                ? 'E.g. I am a senior software engineer with 8 years in backend development. I enjoy helping junior developers grow…'
-                : 'E.g. I am a second-year computer science student looking to break into data science and machine learning…'}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              style={{ resize: 'vertical' }}
-            />
-          </Form.Group>
+          <Row className="g-4">
+            {/* LEFT COLUMN: Narrative Bio, Skills & Topics */}
+            <Col lg={7}>
+              <div className="card-glass-custom p-4 h-100 d-flex flex-column">
+                <div className="d-flex align-items-center justify-content-between pb-3 mb-3 border-bottom border-secondary border-opacity-25">
+                  <h5 className="fw-bold text-themed-primary mb-0" style={{ fontFamily: 'var(--font-heading)' }}>
+                    Core Profile & Expertise
+                  </h5>
+                  <span className="text-themed-secondary small">NLP Matched</span>
+                </div>
 
-          {/* Skills */}
-          <TagInput
-            label={user?.role === 'mentor' ? 'Your Skills (what you teach)' : 'Skills You Have'}
-            tags={skills}
-            setTags={setSkills}
-            placeholder="e.g. Python, React, Machine Learning — press Enter or click Add"
-          />
-
-          {/* Interests */}
-          <TagInput
-            label={user?.role === 'mentor' ? 'Topics You Enjoy Mentoring' : 'Interests & Topics You Want to Learn'}
-            tags={interests}
-            setTags={setInterests}
-            placeholder="e.g. AI, Career Growth, Web Development"
-          />
-
-          {/* Experience Years */}
-          <Form.Group className="mb-4">
-            <Form.Label className="form-dark-label">Years of Experience</Form.Label>
-            <Form.Control
-              type="number"
-              min="0"
-              max="50"
-              className="form-dark-control"
-              placeholder="e.g. 5"
-              value={experienceYears}
-              onChange={(e) => setExperienceYears(e.target.value)}
-              style={{ maxWidth: '200px' }}
-            />
-          </Form.Group>
-
-          {/* Direct Communication Channels */}
-          <div className="pt-3 border-top border-secondary border-opacity-25 mb-4">
-            <h6 className="fw-bold text-themed-primary mb-1">Direct Communication Channels</h6>
-            <p className="text-themed-secondary small mb-3">
-              Your contact details are strictly private and only unlocked when a mentorship match is accepted by both parties.
-            </p>
-
-            <Row className="g-3">
-              <Col xs={12} md={6}>
-                <Form.Group>
+                {/* Bio */}
+                <Form.Group className="mb-4">
                   <Form.Label className="form-dark-label">
-                    WhatsApp Number
+                    {user?.role === 'mentor'
+                      ? 'About You (What you can help mentees with)'
+                      : 'About You (What you want to learn and achieve)'}
                   </Form.Label>
                   <Form.Control
-                    type="text"
+                    as="textarea"
+                    rows={4}
                     className="form-dark-control"
-                    placeholder="e.g. +254712345678"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
+                    placeholder={
+                      user?.role === 'mentor'
+                        ? 'E.g. I am a senior software engineer with experience in cloud architectures and backend systems…'
+                        : 'E.g. I am a fourth-year student looking to build practical skills in data science and web development…'
+                    }
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    style={{ resize: 'vertical' }}
                   />
-                  <Form.Text className="text-themed-secondary" style={{ fontSize: '0.75rem' }}>
-                    Used for direct 1-click WhatsApp messaging upon connection.
-                  </Form.Text>
                 </Form.Group>
-              </Col>
 
-              <Col xs={12} md={6}>
-                <Form.Group>
-                  <Form.Label className="form-dark-label">
-                    LinkedIn / Portfolio URL
-                  </Form.Label>
-                  <Form.Control
-                    type="url"
-                    className="form-dark-control"
-                    placeholder="https://linkedin.com/in/username"
-                    value={linkedinUrl}
-                    onChange={(e) => setLinkedinUrl(e.target.value)}
-                  />
-                  <Form.Text className="text-themed-secondary" style={{ fontSize: '0.75rem' }}>
-                    Optional professional profile link.
-                  </Form.Text>
-                </Form.Group>
-              </Col>
-            </Row>
-          </div>
+                {/* Skills */}
+                <TagInput
+                  label={user?.role === 'mentor' ? 'Your Skills & Technologies (what you teach)' : 'Skills You Have'}
+                  tags={skills}
+                  setTags={setSkills}
+                  placeholder="e.g. Python, React, PostgreSQL — type & press Enter"
+                />
 
-          <div className="d-flex gap-3 align-items-center">
-            <Button type="submit" className="btn-gold btn-lg" disabled={saving}>
-              {saving ? <><Spinner size="sm" className="me-2" />Saving…</> : 'Save Profile'}
-            </Button>
-            <span className="text-themed-secondary small">
-              Saving updates your AI match score automatically.
-            </span>
-          </div>
+                {/* Interests */}
+                <TagInput
+                  label={user?.role === 'mentor' ? 'Mentoring Focus Areas' : 'Interests & Topics You Want to Learn'}
+                  tags={interests}
+                  setTags={setInterests}
+                  placeholder="e.g. Artificial Intelligence, Career Transition, System Design"
+                />
+              </div>
+            </Col>
+
+            {/* RIGHT COLUMN: Experience, Communication Channels & Save Action */}
+            <Col lg={5}>
+              <div className="card-glass-custom p-4 h-100 d-flex flex-column justify-content-between">
+                <div>
+                  <div className="d-flex align-items-center justify-content-between pb-3 mb-3 border-bottom border-secondary border-opacity-25">
+                    <h5 className="fw-bold text-themed-primary mb-0" style={{ fontFamily: 'var(--font-heading)' }}>
+                      Experience & Channels
+                    </h5>
+                    <span className="text-themed-secondary small">Direct Contact</span>
+                  </div>
+
+                  {/* Experience Years */}
+                  <Form.Group className="mb-4">
+                    <Form.Label className="form-dark-label">Years of Experience</Form.Label>
+                    <div className="d-flex align-items-center gap-2">
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        max="50"
+                        className="form-dark-control"
+                        placeholder="e.g. 2"
+                        value={experienceYears}
+                        onChange={(e) => setExperienceYears(e.target.value)}
+                        style={{ maxWidth: '140px' }}
+                      />
+                      <span className="text-themed-secondary small">years</span>
+                    </div>
+                  </Form.Group>
+
+                  {/* Direct Channels */}
+                  <div className="mb-4">
+                    <h6 className="fw-bold text-themed-primary small mb-1">Direct Communication Channels</h6>
+                    <p className="text-themed-secondary small mb-3" style={{ fontSize: '0.78rem' }}>
+                      Contact details are unlocked exclusively after a match request is mutually accepted.
+                    </p>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label className="form-dark-label">WhatsApp Number</Form.Label>
+                      <Form.Control
+                        type="text"
+                        className="form-dark-control"
+                        placeholder="e.g. +254712345678"
+                        value={whatsapp}
+                        onChange={(e) => setWhatsapp(e.target.value)}
+                      />
+                      <Form.Text className="text-themed-secondary" style={{ fontSize: '0.72rem' }}>
+                        Used for 1-click WhatsApp messaging upon match acceptance.
+                      </Form.Text>
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label className="form-dark-label">LinkedIn / Portfolio URL</Form.Label>
+                      <Form.Control
+                        type="url"
+                        className="form-dark-control"
+                        placeholder="https://linkedin.com/in/username"
+                        value={linkedinUrl}
+                        onChange={(e) => setLinkedinUrl(e.target.value)}
+                      />
+                    </Form.Group>
+                  </div>
+                </div>
+
+                {/* Profile Readiness & Save Action */}
+                <div className="pt-3 border-top border-secondary border-opacity-25">
+                  <div className="d-flex align-items-center justify-content-between mb-3 px-1">
+                    <span className="text-themed-secondary small">Skills: <strong className="text-gold">{skills.length}</strong></span>
+                    <span className="text-themed-secondary small">Topics: <strong className="text-gold">{interests.length}</strong></span>
+                    <span className="text-themed-secondary small">{bio.trim() ? '✓ Bio ready' : '⚠ Bio needed'}</span>
+                  </div>
+
+                  <Button type="submit" className="btn-gold btn-lg w-100" disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Spinner size="sm" className="me-2" />
+                        Saving Profile…
+                      </>
+                    ) : (
+                      'Save Profile'
+                    )}
+                  </Button>
+                  <p className="text-themed-secondary text-center small mt-2 mb-0" style={{ fontSize: '0.74rem' }}>
+                    Saving updates your AI match embedding automatically.
+                  </p>
+                </div>
+              </div>
+            </Col>
+          </Row>
         </Form>
-      </div>
-    </Container>
+      </Container>
+    </div>
   );
 }

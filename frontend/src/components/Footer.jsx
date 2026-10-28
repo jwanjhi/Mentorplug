@@ -10,7 +10,7 @@ const Footer = () => {
             <span className="fw-semibold text-white">Mentor<span className="brand-plug">Plug</span></span> — NLP-Based Semantic Mentor-Mentee Recommendation System
           </Col>
           <Col md={6} className="text-center text-md-end text-white-50 small">
-            Strathmore University &bull; Bachelor of Science in Computer Science &bull; 2026
+            NLP Mentorship Platform &bull; Empowering Growth &bull; 2026
           </Col>
         </Row>
       </Container>

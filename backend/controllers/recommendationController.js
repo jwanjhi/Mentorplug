@@ -94,10 +94,12 @@ const getRecommendations = async (req, res) => {
       `SELECT m."matchID" AS matchid, m."mentorID", m.similarity_score, m.status,
               a.name, a.email,
               p.bio, p.skills, p.interests, p.experience_years, p.avatar_url,
-              p.whatsapp, p.linkedin_url
+              p.whatsapp, p.linkedin_url,
+              f.rating AS feedback_rating, f.comment AS feedback_comment
        FROM   matches m
        JOIN   account a ON a."accountID" = m."mentorID"
        LEFT JOIN profiles p ON p."accountID" = m."mentorID"
+       LEFT JOIN feedback f ON f."matchID" = m."matchID" AND f."giverID" = $1
        WHERE  m."menteeID" = $1
        ORDER  BY m.similarity_score DESC`,
       [menteeID]
@@ -107,6 +109,10 @@ const getRecommendations = async (req, res) => {
       matchid: r.matchid,
       similarity_score: r.similarity_score,
       status: r.status,
+      feedback: r.feedback_rating ? {
+        rating: r.feedback_rating,
+        comment: r.feedback_comment
+      } : null,
       mentor: {
         accountID: r.mentorID,
         name: r.name,
@@ -226,10 +232,12 @@ const getIncomingRequests = async (req, res) => {
       `SELECT m."matchID" AS matchid, m."menteeID", m.similarity_score, m.status, m.message,
               a.name, a.email,
               p.bio, p.skills, p.interests, p.experience_years, p.avatar_url,
-              p.whatsapp, p.linkedin_url
+              p.whatsapp, p.linkedin_url,
+              f.rating AS feedback_rating, f.comment AS feedback_comment
        FROM   matches m
        JOIN   account a ON a."accountID" = m."menteeID"
        LEFT JOIN profiles p ON p."accountID" = m."menteeID"
+       LEFT JOIN feedback f ON f."matchID" = m."matchID" AND f."giverID" = $1
        WHERE  m."mentorID" = $1 AND m.status IN ('pending', 'accepted', 'rejected')
        ORDER  BY m."createdAt" DESC`,
       [mentorID]
@@ -240,6 +248,10 @@ const getIncomingRequests = async (req, res) => {
       similarity_score: r.similarity_score,
       status: r.status,
       message: r.message,
+      feedback: r.feedback_rating ? {
+        rating: r.feedback_rating,
+        comment: r.feedback_comment
+      } : null,
       mentee: {
         accountID: r.menteeID,
         name: r.name,

@@ -45,8 +45,8 @@ const Register = () => {
   };
 
   return (
-    <div className="register-page py-5">
-      <Container>
+    <div className="auth-page-bg py-5">
+      <Container className="my-auto">
         <Row className="justify-content-center">
           <Col xs={12} sm={10} md={8} lg={6}>
             {/* Header branding */}
@@ -61,7 +61,7 @@ const Register = () => {
             </div>
 
             {/* Registration Card */}
-            <Card className="card-mentor-custom p-4">
+            <Card className="card-glass-custom p-4 p-md-5">
               <Card.Body className="p-0">
                 {error && (
                   <Alert variant="danger" className="py-2 px-3 small border-0" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#EF4444' }}>

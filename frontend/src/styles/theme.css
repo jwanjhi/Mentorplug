@@ -292,19 +292,27 @@ h1, h2, h3, h4, h5, h6, .brand-font {
 
 /* Step Card & Icon */
 .step-card {
-  background: var(--mp-bg-card);
-  border: 1px solid var(--mp-border-subtle);
+  background: rgba(18, 22, 36, 0.72);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(201, 168, 76, 0.3);
   border-radius: var(--mp-radius-card);
-  padding: 2rem 1.5rem;
+  padding: 2.25rem 1.75rem;
   height: 100%;
-  box-shadow: var(--mp-card-shadow);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
   transition: all 0.25s ease;
 }
 
+[data-theme="light"] .step-card {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(13, 27, 75, 0.12);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
 .step-card:hover {
-  border-color: var(--mp-gold-border);
-  transform: translateY(-3px);
-  box-shadow: var(--mp-card-shadow-hover);
+  border-color: var(--mp-gold);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45), 0 0 20px rgba(201, 168, 76, 0.15);
 }
 
 .step-icon-wrap {
@@ -368,4 +376,210 @@ h1, h2, h3, h4, h5, h6, .brand-font {
 .role-pill-btn.active {
   background: var(--mp-gold);
   color: #07102D;
+}
+
+/* ==========================================================================
+   Aesthetic Backgrounds & Glassmorphism System
+   ========================================================================== */
+.auth-page-bg {
+  position: relative;
+  min-height: calc(100vh - 100px);
+  display: flex;
+  align-items: center;
+  background-image: 
+    linear-gradient(135deg, rgba(8, 12, 28, 0.55) 0%, rgba(10, 10, 18, 0.75) 100%),
+    url('/images/auth-tech-bg.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+[data-theme="light"] .auth-page-bg {
+  background-image: 
+    linear-gradient(135deg, rgba(255, 255, 255, 0.50) 0%, rgba(241, 245, 249, 0.60) 100%),
+    url('/images/auth-tech-bg.jpg');
+}
+
+.home-page-bg {
+  position: relative;
+  min-height: 100vh;
+  background-image: 
+    linear-gradient(180deg, rgba(10, 10, 15, 0.82) 0%, rgba(10, 10, 15, 0.72) 40%, rgba(10, 10, 15, 0.88) 80%, rgba(10, 10, 15, 0.97) 100%),
+    url('/images/mentee-discussion-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+[data-theme="light"] .home-page-bg {
+  background-image: 
+    linear-gradient(90deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.38) 45%, rgba(255, 255, 255, 0.12) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(248, 250, 252, 0.45) 50%, rgba(248, 250, 252, 0.82) 100%),
+    url('/images/mentee-discussion-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+.home-hero-bg {
+  position: relative;
+  background: transparent;
+}
+
+.card-glass-custom {
+  background: rgba(18, 22, 36, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1.5px solid rgba(201, 168, 76, 0.45) !important;
+  border-radius: var(--mp-radius-card) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), 0 0 30px rgba(201, 168, 76, 0.15) !important;
+  color: var(--mp-text-primary);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+[data-theme="light"] .card-glass-custom {
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 1.5px solid rgba(13, 27, 75, 0.2) !important;
+  box-shadow: 0 20px 40px rgba(13, 27, 75, 0.12) !important;
+}
+
+.profile-page-bg {
+  position: relative;
+  min-height: 100vh;
+  background-image: 
+    linear-gradient(180deg, rgba(10, 10, 15, 0.70) 0%, rgba(10, 10, 15, 0.82) 45%, rgba(10, 10, 15, 0.95) 100%),
+    url('/images/growth-desk-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+[data-theme="light"] .profile-page-bg {
+  background-image: 
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(248, 250, 252, 0.58) 45%, rgba(248, 250, 252, 0.82) 100%),
+    url('/images/growth-desk-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+.recommendations-page-bg {
+  position: relative;
+  min-height: 100vh;
+  background-image: 
+    linear-gradient(180deg, rgba(10, 10, 15, 0.70) 0%, rgba(10, 10, 15, 0.84) 45%, rgba(10, 10, 15, 0.96) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+[data-theme="light"] .recommendations-page-bg {
+  background-image: 
+    linear-gradient(180deg, rgba(255, 255, 255, 0.40) 0%, rgba(248, 250, 252, 0.55) 45%, rgba(248, 250, 252, 0.82) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+.mentor-dashboard-page-bg {
+  position: relative;
+  min-height: 100vh;
+  background-image: 
+    linear-gradient(180deg, rgba(10, 10, 15, 0.70) 0%, rgba(10, 10, 15, 0.84) 45%, rgba(10, 10, 15, 0.96) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+[data-theme="light"] .mentor-dashboard-page-bg {
+  background-image: 
+    linear-gradient(180deg, rgba(255, 255, 255, 0.40) 0%, rgba(248, 250, 252, 0.55) 45%, rgba(248, 250, 252, 0.82) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Panoramic Hero Banner with Image & Scrim */
+.hero-banner-custom {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--mp-radius-card);
+  border: 1.5px solid var(--mp-gold);
+  background-size: cover;
+  background-position: center right;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55), 0 0 25px rgba(201, 168, 76, 0.12);
+  margin-bottom: 2.25rem;
+  min-height: 240px;
+}
+
+.hero-banner-mentee {
+  background-image: 
+    linear-gradient(90deg, rgba(10, 10, 15, 0.94) 0%, rgba(10, 10, 15, 0.75) 45%, rgba(10, 10, 15, 0.3) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+}
+
+[data-theme="light"] .hero-banner-mentee {
+  background-image: 
+    linear-gradient(90deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 45%, rgba(255, 255, 255, 0.12) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+}
+
+.hero-banner-mentor {
+  background-image: 
+    linear-gradient(90deg, rgba(10, 10, 15, 0.94) 0%, rgba(13, 27, 75, 0.8) 50%, rgba(10, 10, 15, 0.3) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+}
+
+[data-theme="light"] .hero-banner-mentor {
+  background-image: 
+    linear-gradient(90deg, rgba(255, 255, 255, 0.85) 0%, rgba(241, 245, 249, 0.55) 50%, rgba(255, 255, 255, 0.12) 100%),
+    url('/images/mentor-guidance-bg.jpg');
+}
+
+.hero-banner-content {
+  position: relative;
+  z-index: 2;
+  padding: 2.75rem 2.25rem;
+  max-width: 650px;
+}
+
+/* Mentorship Insight Card (Comic feature) */
+.mentorship-insight-card {
+  background: var(--mp-bg-card);
+  border: 1px solid var(--mp-border-subtle);
+  border-radius: var(--mp-radius-card);
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.mentorship-insight-card:hover {
+  border-color: var(--mp-gold-border);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.comic-img-thumb {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  object-position: center 20%;
+  border-bottom: 1px solid var(--mp-border-subtle);
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.comic-img-thumb:hover {
+  transform: scale(1.02);
 }
