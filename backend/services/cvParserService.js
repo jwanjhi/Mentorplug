@@ -1,7 +1,33 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const pdf = require('pdf-parse');
+const pdfParseMod = require('pdf-parse');
+
+/**
+ * Universal PDF text extractor supporting both pdf-parse v1 (function) and v2 (PDFParse class).
+ */
+async function extractTextFromPdf(buffer) {
+  if (typeof pdfParseMod === 'function') {
+    const data = await pdfParseMod(buffer);
+    return data.text || '';
+  }
+  if (pdfParseMod?.PDFParse) {
+    const parser = new pdfParseMod.PDFParse({ data: buffer });
+    try {
+      const res = await parser.getText();
+      return res.text || '';
+    } finally {
+      if (typeof parser.destroy === 'function') {
+        try { await parser.destroy(); } catch (_) {}
+      }
+    }
+  }
+  if (typeof pdfParseMod?.default === 'function') {
+    const data = await pdfParseMod.default(buffer);
+    return data.text || '';
+  }
+  throw new Error('Unsupported pdf-parse module format');
+}
 
 // Curated comprehensive technical & domain skill vocabulary
 const SKILL_TAXONOMY = [
@@ -89,6 +115,59 @@ function extractSkills(text) {
 }
 
 /**
+ * Cleans extracted bio text: collapses spaced letters, strips banner prefixes,
+ * snaps to sentence boundaries, and strips trailing dangling prepositions/conjunctions.
+ */
+function cleanBioText(raw) {
+  if (!raw) return '';
+
+  let text = raw
+    // Collapse single-letter spaced words like 'S o f t w a r e' -> 'Software'
+    .replace(/(?:(?<=\s|^)[A-Za-z]\s+){2,}[A-Za-z](?=\s|$)/g, (m) => m.replace(/\s+/g, ''))
+    // Normalize multiple spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // If there is a title banner like 'Software Engineering | AI & I am a...', strip prefix before narrative sentence
+  const narrativeMatch = text.match(/\b(I\s+am|I\'m|A\s+[a-z\-]+\s+student|Passionate|Experienced|Dedicated|Results-driven)\b/i);
+  if (narrativeMatch && narrativeMatch.index > 0 && narrativeMatch.index < 80) {
+    const prefix = text.slice(0, narrativeMatch.index);
+    if (/(\||&|•|\/|-)\s*$/.test(prefix.trim())) {
+      text = text.slice(narrativeMatch.index).trim();
+    }
+  }
+
+  // Snap to complete sentence
+  const maxLen = 450;
+  if (text.length > maxLen) {
+    const truncated = text.slice(0, maxLen);
+    const lastPeriod = Math.max(
+      truncated.lastIndexOf('. '),
+      truncated.lastIndexOf('.\n'),
+      truncated.lastIndexOf('! '),
+      truncated.lastIndexOf('? ')
+    );
+    if (lastPeriod > 80) {
+      text = truncated.slice(0, lastPeriod + 1).trim();
+    } else {
+      text = truncated;
+    }
+  }
+
+  // Remove trailing dangling prepositions, conjunctions, symbols (e.g. "with hands-on experience in")
+  const danglingRegex = /\b(and|with|in|to|for|of|at|by|on|or|as|the|a|an|&|,|-|\|)\s*$/i;
+  while (danglingRegex.test(text)) {
+    text = text.replace(danglingRegex, '').trim();
+  }
+
+  if (text && !/[.!?]$/.test(text)) {
+    text += '.';
+  }
+
+  return text;
+}
+
+/**
  * Extracts a concise bio/professional summary from CV text.
  */
 function extractSummary(text) {
@@ -117,8 +196,8 @@ function extractSummary(text) {
   }
 
   if (summaryParagraphs.length > 0) {
-    const joined = summaryParagraphs.join(' ').replace(/\s+/g, ' ').trim();
-    if (joined.length > 30) return joined.slice(0, 500);
+    const cleaned = cleanBioText(summaryParagraphs.join(' '));
+    if (cleaned.length > 30) return cleaned;
   }
 
   const candidateLines = lines.filter((l) => {
@@ -127,7 +206,8 @@ function extractSummary(text) {
   });
 
   if (candidateLines.length > 0) {
-    return candidateLines.slice(0, 3).join(' ').replace(/\s+/g, ' ').slice(0, 450);
+    const cleaned = cleanBioText(candidateLines.slice(0, 3).join(' '));
+    if (cleaned.length > 30) return cleaned;
   }
 
   return '';
@@ -202,8 +282,7 @@ function deriveInterests(skills) {
  * Main parser entry point: extracts text from PDF and enriches it using Sentence-BERT.
  */
 async function parseCvBuffer(buffer) {
-  const data = await pdf(buffer);
-  const rawText = data.text || '';
+  const rawText = await extractTextFromPdf(buffer);
 
   if (!rawText.trim()) {
     throw new Error('Unable to extract text from the PDF. The file may be image-based or password-protected.');

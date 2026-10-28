@@ -99,7 +99,7 @@ export default function Profile() {
 
       setAlert({
         type: 'success',
-        msg: `✨ SBERT analyzed "${file.name}"! Bio, skills, and experience have been populated. Review and edit before saving.`,
+        msg: `✨ We've analyzed "${file.name}" and filled in your profile! Review and adjust anything before saving.`,
       });
     } catch (err) {
       const msg = err.response?.data?.error || 'Failed to extract text from CV. Please try again.';
@@ -215,7 +215,7 @@ export default function Profile() {
               <span>📄</span> Auto-Fill with CV / Resume
             </div>
             <p className="text-themed-secondary small mb-0">
-              Upload your PDF resume to extract your bio, skills, and experience with Sentence-BERT NLP.
+              Upload your PDF resume to automatically fill in your bio, skills, and experience.
             </p>
           </div>
           <div>
@@ -236,7 +236,7 @@ export default function Profile() {
               {parsingCv ? (
                 <>
                   <Spinner size="sm" className="me-2" />
-                  Analyzing with SBERT…
+                  Reading resume…
                 </>
               ) : (
                 'Upload CV (.pdf)'
