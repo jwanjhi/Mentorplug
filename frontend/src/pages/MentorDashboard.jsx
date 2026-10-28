@@ -60,6 +60,11 @@ const RequestRow = ({ match, onAccept, onDecline }) => {
                 <span key={t} className="tag-gold-outline" style={{ fontSize: '0.72rem', padding: '0.18rem 0.6rem' }}>{t}</span>
               ))}
             </div>
+            {match.message && (
+              <p className="small text-themed-secondary mt-2 mb-0 fst-italic" style={{ background: 'var(--mp-bg-surface)', padding: '0.4rem 0.75rem', borderRadius: 'var(--mp-radius-sm)', borderLeft: '3px solid var(--mp-gold)' }}>
+                "{match.message}"
+              </p>
+            )}
           </div>
         </div>
 

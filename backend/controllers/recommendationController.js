@@ -157,7 +157,7 @@ const runAndSaveRecommendations = async (req, res) => {
     };
     const ranked = await getRecommendationsFromPython(payload);
 
-    // Upsert all ranked matches into DB
+    // Upsert all ranked matches into DB as 'suggested'
     const mentorMap = new Map(mentorRows.map((m) => [m.accountID, m]));
     const saved = [];
     for (const item of ranked) {
@@ -165,10 +165,13 @@ const runAndSaveRecommendations = async (req, res) => {
       if (!mentor) continue;
       const { rows: upsertRows } = await pool.query(
         `INSERT INTO matches ("menteeID", "mentorID", similarity_score, status)
-         VALUES ($1, $2, $3, 'pending')
+         VALUES ($1, $2, $3, 'suggested')
          ON CONFLICT ("menteeID", "mentorID") DO UPDATE
            SET similarity_score = EXCLUDED.similarity_score,
-           status = EXCLUDED.status,
+               status = CASE 
+                 WHEN matches.status IN ('pending', 'accepted', 'rejected') THEN matches.status 
+                 ELSE 'suggested' 
+               END,
                "createdAt"      = NOW()
          RETURNING "matchID" AS matchid, similarity_score, status`,
         [menteeID, item.id, item.score]
@@ -202,6 +205,7 @@ const runAndSaveRecommendations = async (req, res) => {
 /* ─────────────────────────────────────────────────────────────────────────────
    GET /api/recommendations/incoming
    Returns all matches where the authenticated user is the mentor.
+   Only returns matches where the mentee explicitly requested mentorship ('pending', 'accepted', 'rejected').
    ───────────────────────────────────────────────────────────────────────────── */
 const getIncomingRequests = async (req, res) => {
   try {
@@ -209,13 +213,13 @@ const getIncomingRequests = async (req, res) => {
     const mentorID = req.user.accountID;
 
     const { rows } = await pool.query(
-      `SELECT m."matchID" AS matchid, m."menteeID", m.similarity_score, m.status,
+      `SELECT m."matchID" AS matchid, m."menteeID", m.similarity_score, m.status, m.message,
               a.name, a.email,
               p.bio, p.skills, p.interests, p.experience_years, p.avatar_url
        FROM   matches m
        JOIN   account a ON a."accountID" = m."menteeID"
        LEFT JOIN profiles p ON p."accountID" = m."menteeID"
-       WHERE  m."mentorID" = $1
+       WHERE  m."mentorID" = $1 AND m.status IN ('pending', 'accepted', 'rejected')
        ORDER  BY m."createdAt" DESC`,
       [mentorID]
     );
@@ -224,6 +228,7 @@ const getIncomingRequests = async (req, res) => {
       matchid: r.matchid,
       similarity_score: r.similarity_score,
       status: r.status,
+      message: r.message,
       mentee: {
         accountID: r.menteeID,
         name: r.name,
@@ -277,11 +282,12 @@ const sendMatchRequest = async (req, res) => {
     if (req.user?.role !== 'mentee') return res.status(403).json({ error: 'Mentees only' });
     const menteeID = req.user.accountID;
     const matchID  = req.params.id;
+    const { message } = req.body || {};
 
     const { rowCount } = await pool.query(
-      `UPDATE matches SET status = 'pending'
+      `UPDATE matches SET status = 'pending', message = COALESCE($3, message)
        WHERE "matchID" = $1 AND "menteeID" = $2`,
-      [matchID, menteeID]
+      [matchID, menteeID, message ? message.trim() : null]
     );
     if (!rowCount) return res.status(404).json({ error: 'Match not found or access denied' });
 
