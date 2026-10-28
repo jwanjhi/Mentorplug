@@ -4,9 +4,10 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Avatar from '../components/Avatar';
+import FeedbackModal from '../components/FeedbackModal';
 
 /* ── Single Mentor Card ───────────────────────────────────────────────────────── */
-const MentorCard = ({ match, onRequest, user }) => {
+const MentorCard = ({ match, onRequest, onRate, user }) => {
   const score = Math.round((match.similarity_score ?? 0) * 100);
   const mentor = match.mentor;
 
@@ -115,6 +116,19 @@ const MentorCard = ({ match, onRequest, user }) => {
             ✦ Request Match
           </Button>
         )}
+
+        {/* Post-engagement feedback & rating button (Section 3.8.5) */}
+        <Button
+          variant="outline-secondary"
+          className="btn-outline-gold w-100 mt-2"
+          size="sm"
+          onClick={() => onRate(match)}
+          style={{ fontSize: '0.82rem', padding: '0.38rem 0.75rem', borderRadius: 'var(--mp-radius-pill)' }}
+        >
+          {match.feedback
+            ? `★ ${match.feedback.rating}/5 Rated • Update Review`
+            : '★ Rate Recommendation'}
+        </Button>
       </div>
     </div>
   );
@@ -259,6 +273,19 @@ export default function Recommendations() {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showAdviceModal, setShowAdviceModal] = useState(false);
+  const [feedbackMatch, setFeedbackMatch] = useState(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  const handleOpenFeedback = (match) => {
+    setFeedbackMatch(match);
+    setShowFeedbackModal(true);
+  };
+
+  const handleFeedbackSubmitted = (matchId, fb) => {
+    setMatches((prev) =>
+      prev.map((m) => (m.matchid === matchId ? { ...m, feedback: fb } : m))
+    );
+  };
 
   /* Load existing matches */
   const loadMatches = async () => {
@@ -393,7 +420,12 @@ export default function Recommendations() {
         <Row className="g-4">
           {matches.map((match, i) => (
             <Col key={match.matchid || i} md={6} xl={4}>
-              <MentorCard match={match} onRequest={openModal} user={user} />
+              <MentorCard
+                match={match}
+                onRequest={openModal}
+                onRate={handleOpenFeedback}
+                user={user}
+              />
             </Col>
           ))}
         </Row>
@@ -406,6 +438,14 @@ export default function Recommendations() {
         onHide={() => setShowModal(false)}
         onSend={handleSendRequest}
         user={user}
+      />
+
+      {/* Post-Engagement / Match Feedback Modal (Section 3.8.5) */}
+      <FeedbackModal
+        show={showFeedbackModal}
+        match={feedbackMatch}
+        onHide={() => setShowFeedbackModal(false)}
+        onFeedbackSubmitted={handleFeedbackSubmitted}
       />
 
       {/* Mentorship Insight Advice Modal (Comic Feature) */}

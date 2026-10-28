@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Avatar from '../components/Avatar';
+import FeedbackModal from '../components/FeedbackModal';
 
 /* ── Stat Card ──────────────────────────────────────────────────────────────── */
 const StatCard = ({ label, value, sub }) => (
@@ -31,7 +32,7 @@ const StatusBadge = ({ status }) => {
 };
 
 /* ── Request Row ─────────────────────────────────────────────────────────── */
-const RequestRow = ({ match, onAccept, onDecline, user }) => {
+const RequestRow = ({ match, onAccept, onDecline, onRate, user }) => {
   const mentee = match.mentee;
   const score = Math.round((match.similarity_score ?? 0) * 100);
 
@@ -101,6 +102,15 @@ const RequestRow = ({ match, onAccept, onDecline, user }) => {
               >
                 <span>✉️</span> Email
               </a>
+              <Button
+                variant="outline-secondary"
+                className="btn-outline-gold btn-sm d-flex align-items-center gap-1"
+                size="sm"
+                onClick={() => onRate(match)}
+                style={{ borderRadius: 'var(--mp-radius-pill)', padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+              >
+                {match.feedback ? `★ ${match.feedback.rating}/5 Rated` : '★ Rate Session'}
+              </Button>
             </div>
           </div>
         )}
@@ -157,6 +167,19 @@ export default function MentorDashboard() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all' | 'pending' | 'accepted'
   const [showAdviceModal, setShowAdviceModal] = useState(false);
+  const [feedbackMatch, setFeedbackMatch] = useState(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  const handleOpenFeedback = (match) => {
+    setFeedbackMatch(match);
+    setShowFeedbackModal(true);
+  };
+
+  const handleFeedbackSubmitted = (matchId, fb) => {
+    setMatches((prev) =>
+      prev.map((m) => (m.matchid === matchId ? { ...m, feedback: fb } : m))
+    );
+  };
 
   const loadMatches = async () => {
     try {
@@ -333,9 +356,18 @@ export default function MentorDashboard() {
           match={match}
           onAccept={handleAccept}
           onDecline={handleDecline}
+          onRate={handleOpenFeedback}
           user={user}
         />
       ))}
+
+      {/* Post-Engagement / Match Feedback Modal (Section 3.8.5) */}
+      <FeedbackModal
+        show={showFeedbackModal}
+        match={feedbackMatch}
+        onHide={() => setShowFeedbackModal(false)}
+        onFeedbackSubmitted={handleFeedbackSubmitted}
+      />
 
       {/* Mentorship Insight Advice Modal (Comic feature) */}
       <MentorshipAdviceModal

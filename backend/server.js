@@ -10,6 +10,7 @@ const pool = require('./config/db');
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profiles');
 const recommendationRoutes = require('./routes/recommendations');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/profiles', profileRoutes);
 app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Test database connection on startup
 pool.query('SELECT NOW()')
