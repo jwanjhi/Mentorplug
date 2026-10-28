@@ -139,7 +139,7 @@ const createOrUpdateProfile = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { bio, skills, interests, experience_years } = req.body;
+    const { bio, skills, interests, experience_years, whatsapp, linkedin_url } = req.body;
 
     // Validate that bio, skills, and interests are all present and non-empty
     if (
@@ -169,6 +169,8 @@ const createOrUpdateProfile = async (req, res) => {
 
     const cleanSkills = skills.map((s) => s.trim());
     const cleanInterests = interests.map((i) => i.trim());
+    const cleanWhatsapp = typeof whatsapp === 'string' ? whatsapp.trim() : null;
+    const cleanLinkedin = typeof linkedin_url === 'string' ? linkedin_url.trim() : null;
     const expYears = (experience_years !== undefined && experience_years !== null)
       ? (parseInt(experience_years, 10) || 0)
       : 0;
@@ -196,9 +198,11 @@ const createOrUpdateProfile = async (req, res) => {
             interests = $3,
             experience_years = $4,
             embedding = $5,
+            whatsapp = $6,
+            linkedin_url = $7,
             "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "accountID" = $6
-        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, embedding, "updatedAt"
+        WHERE "accountID" = $8
+        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, avatar_url, embedding, "updatedAt"
       `;
       const updateResult = await pool.query(updateQuery, [
         bio.trim(),
@@ -206,15 +210,17 @@ const createOrUpdateProfile = async (req, res) => {
         cleanInterests,
         expYears,
         JSON.stringify(embedding),
+        cleanWhatsapp,
+        cleanLinkedin,
         accountID
       ]);
       savedProfile = updateResult.rows[0];
     } else {
       // INSERT new profile
       const insertQuery = `
-        INSERT INTO profiles ("accountID", bio, skills, interests, experience_years, embedding)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, embedding, "updatedAt"
+        INSERT INTO profiles ("accountID", bio, skills, interests, experience_years, embedding, whatsapp, linkedin_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, avatar_url, embedding, "updatedAt"
       `;
       const insertResult = await pool.query(insertQuery, [
         accountID,
@@ -222,7 +228,9 @@ const createOrUpdateProfile = async (req, res) => {
         cleanSkills,
         cleanInterests,
         expYears,
-        JSON.stringify(embedding)
+        JSON.stringify(embedding),
+        cleanWhatsapp,
+        cleanLinkedin
       ]);
       savedProfile = insertResult.rows[0];
     }
@@ -259,6 +267,8 @@ const getMyProfile = async (req, res) => {
         p.skills,
         p.interests,
         p.experience_years,
+        p.whatsapp,
+        p.linkedin_url,
         p.avatar_url,
         p.embedding,
         p."updatedAt",
@@ -301,6 +311,8 @@ const getProfileById = async (req, res) => {
         p.skills,
         p.interests,
         p.experience_years,
+        p.whatsapp,
+        p.linkedin_url,
         p.avatar_url,
         p.embedding,
         p."updatedAt",

@@ -27,6 +27,8 @@ CREATE TABLE profiles (
     skills TEXT[],
     interests TEXT[],
     experience_years INT DEFAULT 0,
+    whatsapp VARCHAR(50),
+    linkedin_url VARCHAR(255),
     embedding JSONB, -- Stores SBERT vector embeddings as array/JSON
     "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

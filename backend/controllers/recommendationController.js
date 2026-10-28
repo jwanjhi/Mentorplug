@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
+const { notifyMenteeMatchAccepted } = require('../services/emailService');
 
 /* ─────────────────────────────────────────────────────────────────────────────
    NLP helper – spawns nlp/recommend.py with JSON via stdin
@@ -92,7 +93,8 @@ const getRecommendations = async (req, res) => {
     const { rows } = await pool.query(
       `SELECT m."matchID" AS matchid, m."mentorID", m.similarity_score, m.status,
               a.name, a.email,
-              p.bio, p.skills, p.interests, p.experience_years, p.avatar_url
+              p.bio, p.skills, p.interests, p.experience_years, p.avatar_url,
+              p.whatsapp, p.linkedin_url
        FROM   matches m
        JOIN   account a ON a."accountID" = m."mentorID"
        LEFT JOIN profiles p ON p."accountID" = m."mentorID"
@@ -109,7 +111,15 @@ const getRecommendations = async (req, res) => {
         accountID: r.mentorID,
         name: r.name,
         email: r.email,
-        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years, avatar_url: r.avatar_url }
+        profile: {
+          bio: r.bio,
+          skills: r.skills,
+          interests: r.interests,
+          experience_years: r.experience_years,
+          avatar_url: r.avatar_url,
+          whatsapp: r.status === 'accepted' ? r.whatsapp : null,
+          linkedin_url: r.status === 'accepted' ? r.linkedin_url : null,
+        }
       }
     }));
 
@@ -215,7 +225,8 @@ const getIncomingRequests = async (req, res) => {
     const { rows } = await pool.query(
       `SELECT m."matchID" AS matchid, m."menteeID", m.similarity_score, m.status, m.message,
               a.name, a.email,
-              p.bio, p.skills, p.interests, p.experience_years, p.avatar_url
+              p.bio, p.skills, p.interests, p.experience_years, p.avatar_url,
+              p.whatsapp, p.linkedin_url
        FROM   matches m
        JOIN   account a ON a."accountID" = m."menteeID"
        LEFT JOIN profiles p ON p."accountID" = m."menteeID"
@@ -233,7 +244,15 @@ const getIncomingRequests = async (req, res) => {
         accountID: r.menteeID,
         name: r.name,
         email: r.email,
-        profile: { bio: r.bio, skills: r.skills, interests: r.interests, experience_years: r.experience_years, avatar_url: r.avatar_url }
+        profile: {
+          bio: r.bio,
+          skills: r.skills,
+          interests: r.interests,
+          experience_years: r.experience_years,
+          avatar_url: r.avatar_url,
+          whatsapp: r.status === 'accepted' ? r.whatsapp : null,
+          linkedin_url: r.status === 'accepted' ? r.linkedin_url : null,
+        }
       }
     }));
 
@@ -265,6 +284,36 @@ const updateMatchStatus = async (req, res) => {
       [status, matchID, mentorID]
     );
     if (!rowCount) return res.status(404).json({ error: 'Match not found or access denied' });
+
+    // When accepted, automatically dispatch email notification to the mentee
+    if (status === 'accepted') {
+      try {
+        const { rows: details } = await pool.query(
+          `SELECT 
+             mentee_acc.name AS mentee_name, mentee_acc.email AS mentee_email,
+             mentor_acc.name AS mentor_name, mentor_acc.email AS mentor_email,
+             mentor_prof.whatsapp AS mentor_whatsapp
+           FROM matches m
+           JOIN account mentee_acc ON mentee_acc."accountID" = m."menteeID"
+           JOIN account mentor_acc ON mentor_acc."accountID" = m."mentorID"
+           LEFT JOIN profiles mentor_prof ON mentor_prof."accountID" = m."mentorID"
+           WHERE m."matchID" = $1`,
+          [matchID]
+        );
+        if (details.length > 0) {
+          const d = details[0];
+          notifyMenteeMatchAccepted({
+            menteeEmail: d.mentee_email,
+            menteeName: d.mentee_name,
+            mentorName: d.mentor_name,
+            mentorEmail: d.mentor_email,
+            mentorWhatsapp: d.mentor_whatsapp,
+          });
+        }
+      } catch (notifyErr) {
+        console.error('Failed to dispatch match accepted email:', notifyErr.message);
+      }
+    }
 
     return res.status(200).json({ message: `Match ${status}` });
   } catch (err) {
