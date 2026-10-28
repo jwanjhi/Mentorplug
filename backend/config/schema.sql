@@ -37,7 +37,8 @@ CREATE TABLE matches (
     "menteeID" INT NOT NULL REFERENCES account("accountID") ON DELETE CASCADE,
     "mentorID" INT NOT NULL REFERENCES account("accountID") ON DELETE CASCADE,
     similarity_score NUMERIC(5, 4),
-    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+    status VARCHAR(50) DEFAULT 'suggested' CHECK (status IN ('suggested', 'pending', 'accepted', 'rejected')),
+    message TEXT,
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE ("menteeID", "mentorID")  -- enables ON CONFLICT upsert when re-running NLP
 );
