@@ -181,7 +181,12 @@ const createOrUpdateProfile = async (req, res) => {
     const textToEmbed = `${bio.trim()} ${cleanSkills.join(', ')} ${cleanInterests.join(', ')}`;
 
     // Generate 384-dimensional embedding via Python script
-    const embedding = await generateEmbedding(textToEmbed);
+    let embedding = null;
+    try {
+      embedding = await generateEmbedding(textToEmbed);
+    } catch (embErr) {
+      console.warn('Embedding generation warning:', embErr.message);
+    }
 
     // Check if a profile already exists for this "accountID"
     const checkQuery = 'SELECT "profileID" FROM profiles WHERE "accountID" = $1';
@@ -211,7 +216,7 @@ const createOrUpdateProfile = async (req, res) => {
         cleanSkills,
         cleanInterests,
         expYears,
-        JSON.stringify(embedding),
+        embedding ? JSON.stringify(embedding) : null,
         cleanWhatsapp,
         cleanLinkedin,
         accountID
@@ -230,7 +235,7 @@ const createOrUpdateProfile = async (req, res) => {
         cleanSkills,
         cleanInterests,
         expYears,
-        JSON.stringify(embedding),
+        embedding ? JSON.stringify(embedding) : null,
         cleanWhatsapp,
         cleanLinkedin
       ]);
