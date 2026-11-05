@@ -11,8 +11,14 @@ const nodemailer = require('nodemailer');
  */
 
 const getFromAddress = () => {
+  // If using Resend, unverified domains like @gmail.com or @yahoo.com are rejected by Resend.
+  // Use custom verified domain if provided, otherwise default to Resend's pre-verified sender 'onboarding@resend.dev'
   if (process.env.RESEND_API_KEY) {
-    return process.env.EMAIL_FROM || 'MentorPlug <onboarding@resend.dev>';
+    const customFrom = process.env.EMAIL_FROM ? process.env.EMAIL_FROM.trim() : '';
+    if (customFrom && !customFrom.includes('@gmail.com') && !customFrom.includes('@yahoo.com') && !customFrom.includes('@hotmail.com')) {
+      return customFrom;
+    }
+    return 'MentorPlug <onboarding@resend.dev>';
   }
   return process.env.EMAIL_FROM || (process.env.SMTP_USER ? `"MentorPlug" <${process.env.SMTP_USER.trim()}>` : '"MentorPlug" <no-reply@mentorplug.me>');
 };
@@ -35,6 +41,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
   // 1. Resend REST API (Over HTTPS Port 443 - zero firewall blocks on Render)
   if (process.env.RESEND_API_KEY) {
     try {
+      const fromAddr = getFromAddress();
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -42,7 +49,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: getFromAddress(),
+          from: fromAddr,
           to: recipient,
           subject: subject,
           text: text,
@@ -55,7 +62,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
         throw new Error(data.message || `Resend API returned status ${res.status}`);
       }
 
-      console.log(`📧 [RESEND] Dispatched email to ${recipient.join(', ')} (ID: ${data.id})`);
+      console.log(`📧 [RESEND] Dispatched email to ${recipient.join(', ')} from ${fromAddr} (ID: ${data.id})`);
       return { success: true, provider: 'resend', messageId: data.id };
     } catch (resendErr) {
       console.error('Resend dispatch failed:', resendErr.message);
