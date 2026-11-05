@@ -4,7 +4,7 @@
  *
  * Ingests the 48 clean mentor profiles from data/mentor_seeds.json into PostgreSQL:
  * 1. Upserts each mentor into the 'account' table (role = 'mentor').
- * 2. Upserts profile data, bio, skills, interests, and pre-computed 384-d SBERT embeddings into 'profiles'.
+ * 2. Upserts profile data, bio, skills, interests, phone_verified = true, and pre-computed 384-d SBERT embeddings into 'profiles'.
  * 3. Preserves existing accounts and relationships without conflict.
  */
 
@@ -27,6 +27,9 @@ async function seedMentors() {
   const mentors = JSON.parse(fs.readFileSync(seedsPath, 'utf8'));
   console.log(`Starting database seed for ${mentors.length} mentor profiles...`);
 
+  // Ensure phone_verified column exists
+  await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE;`);
+
   // Default password hash for seeded mentor accounts ('Password123!')
   const defaultPasswordHash = await bcrypt.hash('Password123!', 10);
 
@@ -48,12 +51,12 @@ async function seedMentors() {
       const accountID = accountRes.rows[0].accountID;
       const isNew = accountRes.rows[0].is_new;
 
-      // 2. Upsert into profiles table with 384-d SBERT vector
+      // 2. Upsert into profiles table with 384-d SBERT vector & verified phone
       await pool.query(
         `INSERT INTO profiles (
-           "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, embedding, "updatedAt"
+           "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, phone_verified, embedding, "updatedAt"
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, CURRENT_TIMESTAMP)
          ON CONFLICT ("accountID") DO UPDATE SET
            bio = EXCLUDED.bio,
            skills = EXCLUDED.skills,
@@ -61,6 +64,7 @@ async function seedMentors() {
            experience_years = EXCLUDED.experience_years,
            whatsapp = EXCLUDED.whatsapp,
            linkedin_url = EXCLUDED.linkedin_url,
+           phone_verified = TRUE,
            embedding = EXCLUDED.embedding,
            "updatedAt" = CURRENT_TIMESTAMP`,
         [
@@ -106,4 +110,3 @@ seedMentors().catch((err) => {
   console.error('Fatal seeding error:', err);
   process.exit(1);
 });
-
