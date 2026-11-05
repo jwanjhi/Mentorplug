@@ -22,16 +22,44 @@ app.use(express.json());
 // e.g. GET http://localhost:5000/uploads/avatars/avatar_3.jpg
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Root health endpoints
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'MentorPlug API is running' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profiles', profileRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
-// Test database connection on startup
+// Test database connection and ensure schema updates on startup
 pool.query('SELECT NOW()')
-  .then(() => {
+  .then(async () => {
     console.log('Database connected successfully');
+    try {
+      await pool.query(`
+        ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE;
+        CREATE TABLE IF NOT EXISTS phone_verifications (
+          id SERIAL PRIMARY KEY,
+          "accountID" INT NOT NULL REFERENCES account("accountID") ON DELETE CASCADE,
+          phone VARCHAR(50) NOT NULL,
+          code VARCHAR(10) NOT NULL,
+          "expiresAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          verified BOOLEAN DEFAULT FALSE,
+          "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_phone_verifications_lookup 
+        ON phone_verifications ("accountID", phone, verified, "expiresAt");
+      `);
+      console.log('Phone verification schema verified successfully.');
+    } catch (migErr) {
+      console.warn('Startup migration notice:', migErr.message);
+    }
   })
   .catch((err) => {
     console.error('Database connection failure:', err.message);

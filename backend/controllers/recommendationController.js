@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
-const { notifyMenteeMatchAccepted } = require('../services/emailService');
+const { notifyMenteeMatchAccepted, notifyIncomingMatchRequest } = require('../services/emailService');
 
 /* ─────────────────────────────────────────────────────────────────────────────
    NLP helper – spawns nlp/recommend.py with JSON via stdin
@@ -101,7 +101,7 @@ const getRecommendations = async (req, res) => {
        LEFT JOIN profiles p ON p."accountID" = m."mentorID"
        LEFT JOIN feedback f ON f."matchID" = m."matchID" AND f."giverID" = $1
        WHERE  m."menteeID" = $1
-       ORDER  BY m.similarity_score DESC`,
+       ORDER  BY m.similarity_score DESC LIMIT 6`,
       [menteeID]
     );
 
@@ -176,7 +176,7 @@ const runAndSaveRecommendations = async (req, res) => {
     // Upsert all ranked matches into DB as 'suggested'
     const mentorMap = new Map(mentorRows.map((m) => [m.accountID, m]));
     const saved = [];
-    for (const item of ranked) {
+    for (const item of ranked.slice(0, 6)) {
       const mentor = mentorMap.get(item.id);
       if (!mentor) continue;
       const { rows: upsertRows } = await pool.query(
@@ -351,6 +351,29 @@ const sendMatchRequest = async (req, res) => {
       [matchID, menteeID, message ? message.trim() : null]
     );
     if (!rowCount) return res.status(404).json({ error: 'Match not found or access denied' });
+
+    // Asynchronously notify mentor of incoming request
+    try {
+      const { rows: details } = await pool.query(
+        `SELECT mentor.email AS mentor_email, mentor.name AS mentor_name,
+                mentee.name AS mentee_name
+         FROM   matches m
+         JOIN   account mentor ON mentor."accountID" = m."mentorID"
+         JOIN   account mentee ON mentee."accountID" = m."menteeID"
+         WHERE  m."matchID" = $1`,
+        [matchID]
+      );
+      if (details.length > 0) {
+        notifyIncomingMatchRequest({
+          mentorEmail: details[0].mentor_email,
+          mentorName: details[0].mentor_name,
+          menteeName: details[0].mentee_name,
+          introMessage: message ? message.trim() : null,
+        }).catch((e) => console.warn('Incoming match request email error:', e.message));
+      }
+    } catch (notifyErr) {
+      console.error('Failed to notify mentor of match request:', notifyErr.message);
+    }
 
     return res.status(200).json({ message: 'Request sent' });
   } catch (err) {

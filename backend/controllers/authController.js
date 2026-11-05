@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const { notifyWelcomeUser, notifySignInAlert } = require('../services/emailService');
 
 // Register a new mentor or mentee account
 const register = async (req, res) => {
@@ -45,6 +46,13 @@ const register = async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Send welcome email asynchronously (non-blocking)
+    notifyWelcomeUser({
+      email: newAccount.email,
+      name: newAccount.name,
+      role: newAccount.role,
+    }).catch((e) => console.warn('Welcome email error:', e.message));
+
     return res.status(201).json({
       message: 'Registration successful',
       token,
@@ -87,6 +95,14 @@ const login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    // Send security sign-in alert asynchronously (non-blocking)
+    notifySignInAlert({
+      email: account.email,
+      name: account.name,
+      ip: req.ip || req.headers['x-forwarded-for'],
+      userAgent: req.headers['user-agent'],
+    }).catch((e) => console.warn('Sign-in alert error:', e.message));
 
     return res.status(200).json({
       message: 'Login successful',
@@ -185,6 +201,14 @@ const googleAuth = async (req, res) => {
         { expiresIn: '24h' }
       );
 
+      // Send security sign-in alert asynchronously
+      notifySignInAlert({
+        email: existingUser.email,
+        name: existingUser.name,
+        ip: req.ip || req.headers['x-forwarded-for'],
+        userAgent: req.headers['user-agent'],
+      }).catch((e) => console.warn('Google sign-in alert error:', e.message));
+
       return res.status(200).json({
         message: 'Google login successful',
         token,
@@ -225,6 +249,14 @@ const googleAuth = async (req, res) => {
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
+
+      // Send security sign-in alert asynchronously
+      notifySignInAlert({
+        email: existingUser.email,
+        name: existingUser.name,
+        ip: req.ip || req.headers['x-forwarded-for'],
+        userAgent: req.headers['user-agent'],
+      }).catch((e) => console.warn('Google sign-in alert error:', e.message));
 
       return res.status(200).json({
         message: 'Google login successful',
@@ -289,7 +321,14 @@ const googleAuth = async (req, res) => {
         { expiresIn: '24h' }
       );
 
-      return res.status(201).json({
+      // Send welcome email asynchronously (non-blocking)
+    notifyWelcomeUser({
+      email: newAccount.email,
+      name: newAccount.name,
+      role: newAccount.role,
+    }).catch((e) => console.warn('Welcome email error:', e.message));
+
+    return res.status(201).json({
         message: 'Google registration successful',
         token,
         user: newAccount,

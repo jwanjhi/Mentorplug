@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner, Modal } from 'react-bootstrap';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/GoogleAuthButton';
 
+const loginValidationSchema = Yup.object({
+  email: Yup.string()
+    .trim()
+    .email('Please enter a valid email address')
+    .required('Email address is required'),
+  password: Yup.string()
+    .required('Password is required'),
+});
+
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
@@ -16,35 +24,34 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
+  const formik = useFormik({
+    initialValues: {
+      email: '',
+      password: '',
+    },
+    validationSchema: loginValidationSchema,
+    onSubmit: async (values, { setSubmitting }) => {
+      setError(null);
+      try {
+        const user = await login(values.email, values.password);
 
-    if (!email || !password) {
-      setError('Please provide both email and password.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const user = await login(email, password);
-
-      // Determine redirect path
-      const from = location.state?.from?.pathname;
-      if (from) {
-        navigate(from, { replace: true });
-      } else if (user.role === 'mentor') {
-        navigate('/mentor-dashboard', { replace: true });
-      } else {
-        navigate('/recommendations', { replace: true });
+        // Determine redirect path
+        const from = location.state?.from?.pathname;
+        if (from) {
+          navigate(from, { replace: true });
+        } else if (user.role === 'mentor') {
+          navigate('/mentor-dashboard', { replace: true });
+        } else {
+          navigate('/recommendations', { replace: true });
+        }
+      } catch (err) {
+        const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+        setError(msg);
+      } finally {
+        setSubmitting(false);
       }
-    } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
   return (
     <div className="auth-page-bg py-5">
@@ -80,19 +87,26 @@ const Login = () => {
                   <hr className="flex-grow-1 border-secondary border-opacity-25 my-0" />
                 </div>
 
-                <Form onSubmit={handleSubmit}>
+                <Form onSubmit={formik.handleSubmit} noValidate>
                   {/* Email Input */}
                   <Form.Group className="mb-3" controlId="loginEmail">
                     <Form.Label className="form-dark-label">Email Address</Form.Label>
                     <Form.Control
                       type="email"
+                      name="email"
                       placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={formik.values.email}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      isInvalid={formik.touched.email && !!formik.errors.email}
                       className="form-dark-control"
-                      required
-                      disabled={loading}
+                      disabled={formik.isSubmitting}
                     />
+                    {formik.touched.email && formik.errors.email && (
+                      <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                        {formik.errors.email}
+                      </Form.Control.Feedback>
+                    )}
                   </Form.Group>
 
                   {/* Password Input with Show/Hide toggle */}
@@ -112,12 +126,14 @@ const Login = () => {
                     <div className="position-relative">
                       <Form.Control
                         type={showPassword ? 'text' : 'password'}
+                        name="password"
                         placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        value={formik.values.password}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        isInvalid={formik.touched.password && !!formik.errors.password}
                         className="form-dark-control pe-5"
-                        required
-                        disabled={loading}
+                        disabled={formik.isSubmitting}
                       />
                       <button
                         type="button"
@@ -139,15 +155,20 @@ const Login = () => {
                         )}
                       </button>
                     </div>
+                    {formik.touched.password && formik.errors.password && (
+                      <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                        {formik.errors.password}
+                      </Form.Control.Feedback>
+                    )}
                   </Form.Group>
 
                   {/* Sign In Button */}
                   <Button
                     type="submit"
                     className="btn-gold w-100 py-2 d-flex align-items-center justify-content-center mt-4"
-                    disabled={loading}
+                    disabled={formik.isSubmitting}
                   >
-                    {loading ? (
+                    {formik.isSubmitting ? (
                       <>
                         <Spinner animation="border" size="sm" className="me-2" />
                         Signing In...

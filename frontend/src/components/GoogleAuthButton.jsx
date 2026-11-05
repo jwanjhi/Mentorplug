@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Button, Alert, Spinner } from 'react-bootstrap';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * GoogleAuthButton
@@ -14,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthSuccess, onError }) {
   const containerRef = useRef(null);
   const { loginWithGoogle } = useAuth();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -116,16 +118,21 @@ export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthS
           cancel_on_tap_outside: true,
         });
 
-        // Determine current theme for button design
-        const isDarkMode = document.documentElement.getAttribute('data-theme') !== 'light';
+        // Clear any previous button iframe before rendering
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
+
+        // Calculate responsive width (min 260px, max 320px)
+        const computedWidth = Math.min(320, Math.max(260, (containerRef.current?.offsetWidth || 300) - 8));
 
         window.google.accounts.id.renderButton(containerRef.current, {
-          theme: isDarkMode ? 'filled_black' : 'outline',
+          theme: isDark ? 'filled_black' : 'outline',
           size: 'large',
           type: 'standard',
           shape: 'pill',
           text: buttonText,
-          width: 320,
+          width: computedWidth,
           logo_alignment: 'left',
         });
       }
@@ -144,7 +151,7 @@ export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthS
       }, 100);
       return () => clearInterval(interval);
     }
-  }, [clientId, buttonText]);
+  }, [clientId, buttonText, isDark]);
 
   return (
     <div className="google-auth-wrapper my-3 w-100">
@@ -167,7 +174,16 @@ export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthS
             Verifying Google Account...
           </div>
         ) : (
-          <div ref={containerRef} className="d-flex justify-content-center w-100" />
+          <div
+            ref={containerRef}
+            className="google-btn-container d-flex justify-content-center"
+            style={{
+              maxWidth: '100%',
+              borderRadius: '24px',
+              overflow: 'hidden',
+              backgroundColor: 'transparent',
+            }}
+          />
         )}
       </div>
 

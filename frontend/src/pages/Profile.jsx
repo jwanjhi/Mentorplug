@@ -1,34 +1,60 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
-import { useAuth } from '../context/AuthContext';
+import { Container, Row, Col, Form, Button, Alert, Spinner, Modal, Badge } from 'react-bootstrap';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/Avatar';
+import { getWhatsAppUrl } from '../services/whatsappHelper';
 
-/* ── Tag chip input ─────────────────────────────────────────────────────────── */
+/* ── Pill Tag Input Component ──────────────────────────────────────────────── */
 const TagInput = ({ label, tags, setTags, placeholder }) => {
-  const [input, setInput] = useState('');
+  const [inputVal, setInputVal] = useState('');
 
   const add = () => {
-    const val = input.trim();
-    if (val && !tags.includes(val)) setTags([...tags, val]);
-    setInput('');
+    const trimmed = inputVal.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+      setInputVal('');
+    }
   };
 
-  const remove = (t) => setTags(tags.filter((x) => x !== t));
+  const remove = (tag) => {
+    setTags(tags.filter((t) => t !== tag));
+  };
 
   return (
     <div className="mb-4">
-      <label className="form-dark-label">{label}</label>
+      <label className="form-dark-label mb-2 d-block">{label}</label>
       <div className="d-flex gap-2 mb-2">
         <input
+          type="text"
           className="form-dark-control flex-grow-1"
-          style={{ borderRadius: 'var(--mp-radius-input)', padding: '0.6rem 1rem', background: 'var(--mp-bg-input)', border: '1px solid var(--mp-border-subtle)', color: 'var(--mp-text-primary)', fontSize: '0.95rem' }}
-          value={input}
           placeholder={placeholder}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
         />
-        <button type="button" className="btn-gold" style={{ borderRadius: 'var(--mp-radius-pill)', padding: '0.5rem 1.1rem', fontWeight: 700, border: 'none', cursor: 'pointer', background: 'var(--mp-gold)', color: '#0A0A0A', whiteSpace: 'nowrap' }} onClick={add}>
+        <button
+          type="button"
+          className="btn-gold"
+          style={{
+            borderRadius: 'var(--mp-radius-pill)',
+            padding: '0.5rem 1.1rem',
+            fontWeight: 700,
+            border: 'none',
+            cursor: 'pointer',
+            background: 'var(--mp-gold)',
+            color: '#0A0A0A',
+            whiteSpace: 'nowrap',
+          }}
+          onClick={add}
+        >
           + Add
         </button>
       </div>
@@ -36,7 +62,22 @@ const TagInput = ({ label, tags, setTags, placeholder }) => {
         {tags.map((t) => (
           <span key={t} className="tag-gold-outline" style={{ cursor: 'default' }}>
             {t}
-            <button type="button" onClick={() => remove(t)} style={{ background: 'none', border: 'none', color: 'var(--mp-gold)', marginLeft: '6px', cursor: 'pointer', padding: 0, fontWeight: 700, lineHeight: 1 }}>×</button>
+            <button
+              type="button"
+              onClick={() => remove(t)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--mp-gold)',
+                marginLeft: '6px',
+                cursor: 'pointer',
+                padding: 0,
+                fontWeight: 700,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
           </span>
         ))}
       </div>
@@ -44,24 +85,170 @@ const TagInput = ({ label, tags, setTags, placeholder }) => {
   );
 };
 
+/* ── Formik Validation Schema ─────────────────────────────────────────────── */
+const profileValidationSchema = Yup.object({
+  bio: Yup.string()
+    .trim()
+    .required('Please write a short bio before saving.'),
+  experience_years: Yup.number()
+    .typeError('Years of experience must be a valid number')
+    .min(0, 'Cannot be negative')
+    .max(60, 'Maximum 60 years')
+    .nullable()
+    .transform((value, originalValue) => (String(originalValue).trim() === '' ? null : value)),
+  whatsapp: Yup.string()
+    .trim()
+    .nullable(),
+  linkedin_url: Yup.string()
+    .trim()
+    .url('Please enter a valid URL (e.g. https://linkedin.com/in/username)')
+    .nullable()
+    .transform((value, originalValue) => (String(originalValue).trim() === '' ? null : value)),
+});
+
 /* ── Main Profile Page ───────────────────────────────────────────────────────── */
 export default function Profile() {
-  const { user, setUser } = useAuth();
-
-  const [bio, setBio] = useState('');
-  const [skills, setSkills] = useState([]);
-  const [interests, setInterests] = useState([]);
-  const [experienceYears, setExperienceYears] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const { user } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState(null);
-
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null); // { type: 'success'|'danger', msg }
 
   const cvFileRef = useRef(null);
   const [parsingCv, setParsingCv] = useState(false);
+
+  /* Phone SMS OTP Verification State */
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [demoCodeNotice, setDemoCodeNotice] = useState(null);
+  const [otpModalAlert, setOtpModalAlert] = useState(null);
+  const [countdown, setCountdown] = useState(0);
+  const [isContactUsername, setIsContactUsername] = useState(false);
+  const [verifiedContactTarget, setVerifiedContactTarget] = useState('');
+
+  /* 5-minute countdown timer effect */
+  useEffect(() => {
+    let timer;
+    if (showOtpModal && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [showOtpModal, countdown]);
+
+  const formatCountdown = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  /* Send SMS OTP code exclusively to user's mobile phone number */
+  const handleInitiateOtp = async () => {
+    const phone = formik.values.whatsapp?.trim();
+    if (!phone) {
+      setAlert({ type: 'danger', msg: 'Please enter your mobile phone number before requesting SMS verification.' });
+      return;
+    }
+
+    // Require real phone number with digits; handles/usernames cannot be proven via SMS
+    if (phone.startsWith('@') || /[a-zA-Z]/.test(phone)) {
+      setAlert({
+        type: 'warning',
+        msg: 'SMS verification requires a real mobile phone number (e.g. +254 712 345 678) to prove authentic ownership. Handles (@username) can be saved as optional unverified contact links.',
+      });
+      return;
+    }
+
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 9) {
+      setAlert({ type: 'danger', msg: 'Please enter a valid phone number with area code (e.g. +254 712 345 678).' });
+      return;
+    }
+
+    setOtpSending(true);
+    setOtpModalAlert(null);
+    try {
+      const res = await api.post('/auth/phone/send-otp', { phone });
+      setVerifiedContactTarget(res.data.phone);
+      setDemoCodeNotice(res.data.isDemo ? res.data.demoCode : null);
+      setCountdown(res.data.expiresInSeconds || 300);
+      setOtpCode('');
+      setShowOtpModal(true);
+      setOtpModalAlert({
+        type: 'info',
+        msg: res.data.message || 'SMS verification code dispatched.',
+      });
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to dispatch verification code. Please check the number and try again.';
+      setAlert({ type: 'danger', msg });
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  /* Confirm 6-digit OTP code to verify phone ownership */
+  const handleConfirmOtp = async () => {
+    if (!otpCode || otpCode.trim().length !== 6) {
+      setOtpModalAlert({ type: 'danger', msg: 'Please enter all 6 digits of your verification code.' });
+      return;
+    }
+    setOtpVerifying(true);
+    setOtpModalAlert(null);
+    try {
+      const res = await api.post('/auth/phone/verify-otp', {
+        phone: verifiedContactTarget || formik.values.whatsapp?.trim(),
+        code: otpCode.trim(),
+      });
+      setPhoneVerified(true);
+      if (res.data.phone) {
+        formik.setFieldValue('whatsapp', res.data.phone);
+      }
+      setShowOtpModal(false);
+      setAlert({
+        type: 'success',
+        msg: '✓ Phone number successfully verified! Your verified identity badge is now active.',
+      });
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Verification failed. Please check the code and try again.';
+      setOtpModalAlert({ type: 'danger', msg });
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  const formik = useFormik({
+    initialValues: {
+      bio: '',
+      skills: [],
+      interests: [],
+      experience_years: '',
+      whatsapp: '',
+      linkedin_url: '',
+    },
+    validationSchema: profileValidationSchema,
+    onSubmit: async (values, { setSubmitting }) => {
+      setAlert(null);
+      try {
+        await api.post('/profiles', {
+          bio: values.bio.trim(),
+          skills: values.skills,
+          interests: values.interests,
+          experience_years: values.experience_years === '' || values.experience_years === null ? null : Number(values.experience_years),
+          whatsapp: values.whatsapp.trim() || null,
+          linkedin_url: values.linkedin_url.trim() || null,
+        });
+        setAlert({ type: 'success', msg: 'Your profile has been saved and your match embedding updated!' });
+      } catch (err) {
+        const msg = err.response?.data?.error || 'Failed to save profile. Please try again.';
+        setAlert({ type: 'danger', msg });
+      } finally {
+        setSubmitting(false);
+      }
+    },
+  });
 
   /* CV SBERT Extraction handler */
   const handleCvUpload = async (e) => {
@@ -86,15 +273,15 @@ export default function Profile() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const data = res.data.data;
-      if (data.bio) setBio(data.bio);
+      if (data.bio) formik.setFieldValue('bio', data.bio);
       if (Array.isArray(data.skills) && data.skills.length > 0) {
-        setSkills((prev) => [...new Set([...prev, ...data.skills])]);
+        formik.setFieldValue('skills', [...new Set([...formik.values.skills, ...data.skills])]);
       }
       if (Array.isArray(data.interests) && data.interests.length > 0) {
-        setInterests((prev) => [...new Set([...prev, ...data.interests])]);
+        formik.setFieldValue('interests', [...new Set([...formik.values.interests, ...data.interests])]);
       }
       if (data.experience_years) {
-        setExperienceYears(String(data.experience_years));
+        formik.setFieldValue('experience_years', String(data.experience_years));
       }
 
       setAlert({
@@ -116,13 +303,16 @@ export default function Profile() {
       try {
         const res = await api.get('/profiles/me');
         const p = res.data;
-        setBio(p.bio || '');
-        setSkills(p.skills || []);
-        setInterests(p.interests || []);
-        setExperienceYears(p.experience_years ?? '');
-        setWhatsapp(p.whatsapp || '');
-        setLinkedinUrl(p.linkedin_url || '');
+        formik.setValues({
+          bio: p.bio || '',
+          skills: p.skills || [],
+          interests: p.interests || [],
+          experience_years: p.experience_years !== null && p.experience_years !== undefined ? String(p.experience_years) : '',
+          whatsapp: p.whatsapp || '',
+          linkedin_url: p.linkedin_url || '',
+        });
         setAvatarUrl(p.avatar_url || null);
+        setPhoneVerified(Boolean(p.phone_verified));
       } catch (err) {
         // 404 means no profile yet — that's fine
         if (err.response?.status !== 404) {
@@ -133,36 +323,8 @@ export default function Profile() {
       }
     };
     fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  /* Save profile */
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!bio.trim()) return setAlert({ type: 'danger', msg: 'Please write a short bio before saving.' });
-
-    setSaving(true);
-    setAlert(null);
-    try {
-      await api.post('/profiles', {
-        bio: bio.trim(),
-        skills,
-        interests,
-        experience_years: experienceYears === '' ? null : Number(experienceYears),
-        whatsapp: whatsapp.trim() || null,
-        linkedin_url: linkedinUrl.trim() || null,
-      });
-      setAlert({ type: 'success', msg: 'Your profile has been saved and your match embedding updated!' });
-    } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to save profile. Please try again.';
-      setAlert({ type: 'danger', msg });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const initials = user?.name
-    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : '??';
 
   if (loading) {
     return (
@@ -198,79 +360,63 @@ export default function Profile() {
                   <h1 className="h4 fw-bolder mb-0 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
                     {user?.name}
                   </h1>
-                  <span className="tag-gold-outline" style={{ fontSize: '0.75rem', textTransform: 'capitalize' }}>
+                  <span className="badge rounded-pill text-uppercase px-2 py-1" style={{ fontSize: '0.7rem', background: 'var(--mp-gold-tint)', color: 'var(--mp-gold)', border: '1px solid var(--mp-gold-border)' }}>
                     {user?.role}
                   </span>
                 </div>
-                <span className="text-themed-secondary small">{user?.email}</span>
+                <p className="text-themed-secondary small mb-0">{user?.email}</p>
               </div>
             </div>
 
-            {/* Right: Quick CV / Resume Auto-fill */}
-            <div
-              className="p-3 d-flex align-items-center justify-content-between gap-3 flex-grow-1 flex-md-grow-0"
-              style={{
-                background: 'rgba(212, 175, 55, 0.08)',
-                border: '1.5px dashed var(--mp-gold-border)',
-                borderRadius: 'var(--mp-radius-input)',
-                minWidth: '320px',
-              }}
-            >
-              <div>
-                <div className="fw-bold text-themed-primary small d-flex align-items-center gap-2 mb-0">
-                  <span>📄</span> Auto-Fill with CV / Resume
+            {/* Right: CV Auto-Fill Feature */}
+            <div className="p-3" style={{ background: 'var(--mp-bg-input)', borderRadius: 'var(--mp-radius-card)', border: '1px solid var(--mp-border-subtle)', minWidth: '320px' }}>
+              <div className="d-flex align-items-center justify-content-between gap-3">
+                <div>
+                  <div className="d-flex align-items-center gap-1 mb-1">
+                    <span role="img" aria-label="document" style={{ fontSize: '0.9rem' }}>📄</span>
+                    <strong className="text-themed-primary small">Auto-Fill with CV / Resume</strong>
+                  </div>
+                  <p className="text-themed-secondary mb-0" style={{ fontSize: '0.74rem' }}>
+                    Extracts bio, skills, and experience in 1-click.
+                  </p>
                 </div>
-                <span className="text-themed-secondary" style={{ fontSize: '0.75rem' }}>
-                  Extracts bio, skills, and experience in 1-click.
-                </span>
-              </div>
-              <div>
-                <input
-                  type="file"
-                  ref={cvFileRef}
-                  accept=".pdf"
-                  style={{ display: 'none' }}
-                  onChange={handleCvUpload}
-                />
-                <Button
-                  className="btn-gold"
-                  size="sm"
-                  style={{ whiteSpace: 'nowrap' }}
-                  onClick={() => cvFileRef.current?.click()}
-                  disabled={parsingCv}
-                >
-                  {parsingCv ? (
-                    <>
-                      <Spinner size="sm" className="me-2" />
-                      Reading…
-                    </>
-                  ) : (
-                    'Upload PDF'
-                  )}
-                </Button>
+                <div>
+                  <input
+                    type="file"
+                    ref={cvFileRef}
+                    accept=".pdf,application/pdf"
+                    className="d-none"
+                    onChange={handleCvUpload}
+                  />
+                  <Button
+                    className="btn-gold"
+                    size="sm"
+                    style={{ whiteSpace: 'nowrap' }}
+                    disabled={parsingCv || formik.isSubmitting}
+                    onClick={() => cvFileRef.current?.click()}
+                  >
+                    {parsingCv ? (
+                      <>
+                        <Spinner size="sm" className="me-1" />
+                        Analyzing…
+                      </>
+                    ) : (
+                      'Upload PDF'
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {alert && (
-          <Alert
-            variant={alert.type}
-            className="mb-4"
-            style={{
-              borderRadius: 'var(--mp-radius-card)',
-              background: alert.type === 'success' ? 'rgba(201,168,76,0.12)' : 'rgba(220,53,69,0.12)',
-              border: `1px solid ${alert.type === 'success' ? 'var(--mp-gold-border)' : 'rgba(220,53,69,0.4)'}`,
-              color: alert.type === 'success' ? 'var(--mp-gold)' : '#F87171',
-            }}
-            onClose={() => setAlert(null)}
-            dismissible
-          >
+          <Alert variant={alert.type} dismissible onClose={() => setAlert(null)} className="mb-4">
             {alert.msg}
           </Alert>
         )}
 
-        <Form onSubmit={handleSave}>
+        <Form onSubmit={formik.handleSubmit} noValidate>
           <Row className="g-4">
             {/* LEFT COLUMN: Narrative Bio, Skills & Topics */}
             <Col lg={7}>
@@ -279,11 +425,10 @@ export default function Profile() {
                   <h5 className="fw-bold text-themed-primary mb-0" style={{ fontFamily: 'var(--font-heading)' }}>
                     Core Profile & Expertise
                   </h5>
-                  <span className="text-themed-secondary small">NLP Matched</span>
                 </div>
 
                 {/* Bio */}
-                <Form.Group className="mb-4">
+                <Form.Group className="mb-4" controlId="profileBio">
                   <Form.Label className="form-dark-label">
                     {user?.role === 'mentor'
                       ? 'About You (What you can help mentees with)'
@@ -292,31 +437,40 @@ export default function Profile() {
                   <Form.Control
                     as="textarea"
                     rows={4}
+                    name="bio"
                     className="form-dark-control"
                     placeholder={
                       user?.role === 'mentor'
                         ? 'E.g. I am a senior software engineer with experience in cloud architectures and backend systems…'
                         : 'E.g. I am a fourth-year student looking to build practical skills in data science and web development…'
                     }
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
+                    value={formik.values.bio}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    isInvalid={formik.touched.bio && !!formik.errors.bio}
                     style={{ resize: 'vertical' }}
+                    disabled={formik.isSubmitting}
                   />
+                  {formik.touched.bio && formik.errors.bio && (
+                    <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                      {formik.errors.bio}
+                    </Form.Control.Feedback>
+                  )}
                 </Form.Group>
 
                 {/* Skills */}
                 <TagInput
                   label={user?.role === 'mentor' ? 'Your Skills & Technologies (what you teach)' : 'Skills You Have'}
-                  tags={skills}
-                  setTags={setSkills}
+                  tags={formik.values.skills}
+                  setTags={(newTags) => formik.setFieldValue('skills', newTags)}
                   placeholder="e.g. Python, React, PostgreSQL — type & press Enter"
                 />
 
                 {/* Interests */}
                 <TagInput
                   label={user?.role === 'mentor' ? 'Mentoring Focus Areas' : 'Interests & Topics You Want to Learn'}
-                  tags={interests}
-                  setTags={setInterests}
+                  tags={formik.values.interests}
+                  setTags={(newTags) => formik.setFieldValue('interests', newTags)}
                   placeholder="e.g. Artificial Intelligence, Career Transition, System Design"
                 />
               </div>
@@ -334,21 +488,30 @@ export default function Profile() {
                   </div>
 
                   {/* Experience Years */}
-                  <Form.Group className="mb-4">
+                  <Form.Group className="mb-4" controlId="profileExperienceYears">
                     <Form.Label className="form-dark-label">Years of Experience</Form.Label>
                     <div className="d-flex align-items-center gap-2">
                       <Form.Control
                         type="number"
                         min="0"
-                        max="50"
+                        max="60"
+                        name="experience_years"
                         className="form-dark-control"
                         placeholder="e.g. 2"
-                        value={experienceYears}
-                        onChange={(e) => setExperienceYears(e.target.value)}
+                        value={formik.values.experience_years}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        isInvalid={formik.touched.experience_years && !!formik.errors.experience_years}
                         style={{ maxWidth: '140px' }}
+                        disabled={formik.isSubmitting}
                       />
                       <span className="text-themed-secondary small">years</span>
                     </div>
+                    {formik.touched.experience_years && formik.errors.experience_years && (
+                      <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                        {formik.errors.experience_years}
+                      </Form.Control.Feedback>
+                    )}
                   </Form.Group>
 
                   {/* Direct Channels */}
@@ -358,29 +521,74 @@ export default function Profile() {
                       Contact details are unlocked exclusively after a match request is mutually accepted.
                     </p>
 
-                    <Form.Group className="mb-3">
-                      <Form.Label className="form-dark-label">WhatsApp Number</Form.Label>
-                      <Form.Control
-                        type="text"
-                        className="form-dark-control"
-                        placeholder="e.g. +254712345678"
-                        value={whatsapp}
-                        onChange={(e) => setWhatsapp(e.target.value)}
-                      />
-                      <Form.Text className="text-themed-secondary" style={{ fontSize: '0.72rem' }}>
-                        Used for 1-click WhatsApp messaging upon match acceptance.
+                    <Form.Group className="mb-3" controlId="profileWhatsapp">
+                      <div className="d-flex align-items-center justify-content-between mb-1">
+                        <Form.Label className="form-dark-label mb-0">WhatsApp / Phone Number</Form.Label>
+                        {phoneVerified ? (
+                          <Badge bg="success" className="d-inline-flex align-items-center gap-1 px-2 py-1" style={{ fontSize: '0.72rem' }}>
+                            ✓ Verified Phone
+                          </Badge>
+                        ) : (
+                          <span className="badge bg-secondary text-white" style={{ fontSize: '0.70rem', opacity: 0.85 }}>
+                            Unverified
+                          </span>
+                        )}
+                      </div>
+                      <div className="d-flex gap-2">
+                        <Form.Control
+                          type="text"
+                          name="whatsapp"
+                          className="form-dark-control"
+                          placeholder="e.g. +254712345678 or @username"
+                          value={formik.values.whatsapp}
+                          onChange={(e) => {
+                            formik.handleChange(e);
+                            if (phoneVerified) setPhoneVerified(false);
+                          }}
+                          onBlur={formik.handleBlur}
+                          isInvalid={formik.touched.whatsapp && !!formik.errors.whatsapp}
+                          disabled={formik.isSubmitting}
+                        />
+                        <Button
+                          variant={phoneVerified ? "outline-secondary" : "outline-warning"}
+                          size="sm"
+                          style={{ whiteSpace: 'nowrap', borderRadius: 'var(--mp-radius-pill)', fontWeight: 600, padding: '0.4rem 0.9rem' }}
+                          onClick={handleInitiateOtp}
+                          disabled={otpSending || formik.isSubmitting || !formik.values.whatsapp || formik.values.whatsapp.trim().length < 7}
+                        >
+                          {otpSending ? <Spinner animation="border" size="sm" /> : (phoneVerified ? 'Re-verify' : 'Verify SMS')}
+                        </Button>
+                      </div>
+                      <Form.Text className="text-themed-secondary d-block mt-1" style={{ fontSize: '0.72rem' }}>
+                        {phoneVerified 
+                          ? 'Phone number verified via SMS OTP. Enables 1-click WhatsApp messaging upon match acceptance.' 
+                          : 'Verify your mobile number via SMS OTP to earn the verified badge.'}
                       </Form.Text>
+                      {formik.touched.whatsapp && formik.errors.whatsapp && (
+                        <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                          {formik.errors.whatsapp}
+                        </Form.Control.Feedback>
+                      )}
                     </Form.Group>
 
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="profileLinkedin">
                       <Form.Label className="form-dark-label">LinkedIn / Portfolio URL</Form.Label>
                       <Form.Control
                         type="url"
+                        name="linkedin_url"
                         className="form-dark-control"
                         placeholder="https://linkedin.com/in/username"
-                        value={linkedinUrl}
-                        onChange={(e) => setLinkedinUrl(e.target.value)}
+                        value={formik.values.linkedin_url}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        isInvalid={formik.touched.linkedin_url && !!formik.errors.linkedin_url}
+                        disabled={formik.isSubmitting}
                       />
+                      {formik.touched.linkedin_url && formik.errors.linkedin_url && (
+                        <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                          {formik.errors.linkedin_url}
+                        </Form.Control.Feedback>
+                      )}
                     </Form.Group>
                   </div>
                 </div>
@@ -388,13 +596,23 @@ export default function Profile() {
                 {/* Profile Readiness & Save Action */}
                 <div className="pt-3 border-top border-secondary border-opacity-25">
                   <div className="d-flex align-items-center justify-content-between mb-3 px-1">
-                    <span className="text-themed-secondary small">Skills: <strong className="text-gold">{skills.length}</strong></span>
-                    <span className="text-themed-secondary small">Topics: <strong className="text-gold">{interests.length}</strong></span>
-                    <span className="text-themed-secondary small">{bio.trim() ? '✓ Bio ready' : '⚠ Bio needed'}</span>
+                    <span className="text-themed-secondary small">
+                      Skills: <strong className="text-gold">{formik.values.skills.length}</strong>
+                    </span>
+                    <span className="text-themed-secondary small">
+                      Topics: <strong className="text-gold">{formik.values.interests.length}</strong>
+                    </span>
+                    <span className="text-themed-secondary small">
+                      {formik.values.bio.trim() ? '✓ Bio ready' : '⚠ Bio needed'}
+                    </span>
                   </div>
 
-                  <Button type="submit" className="btn-gold btn-lg w-100" disabled={saving}>
-                    {saving ? (
+                  <Button
+                    type="submit"
+                    className="btn-gold btn-lg w-100"
+                    disabled={formik.isSubmitting}
+                  >
+                    {formik.isSubmitting ? (
                       <>
                         <Spinner size="sm" className="me-2" />
                         Saving Profile…
@@ -411,6 +629,111 @@ export default function Profile() {
             </Col>
           </Row>
         </Form>
+
+        {/* Phone SMS OTP Verification Modal */}
+        <Modal
+          show={showOtpModal}
+          onHide={() => !otpVerifying && setShowOtpModal(false)}
+          centered
+          contentClassName="card-mentor-custom border-0"
+        >
+          <Modal.Header closeButton={!otpVerifying} closeVariant="white" className="border-0 px-4 pt-4 pb-2">
+            <Modal.Title className="fw-bold text-themed-primary h5 mb-0" style={{ fontFamily: 'var(--font-heading)' }}>
+              Verify Phone via SMS OTP
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="px-4 py-3" style={{ background: 'var(--mp-bg-card)' }}>
+            <p className="text-themed-secondary small mb-3">
+              We dispatched a 6-digit verification code to <strong>{verifiedContactTarget || formik.values.whatsapp}</strong> to confirm your phone ownership.
+            </p>
+
+            {/* Smart In-App Demo Display */}
+            {demoCodeNotice && (
+              <div
+                className="p-3 mb-3 rounded-3"
+                style={{
+                  background: 'rgba(212, 160, 23, 0.12)',
+                  border: '1px solid rgba(212, 160, 23, 0.4)'
+                }}
+              >
+                <div className="d-flex align-items-center justify-content-between mb-1">
+                  <span className="small fw-bold text-warning">
+                    💡 In-App Demo SMS OTP
+                  </span>
+                  <Button
+                    size="sm"
+                    className="btn-gold"
+                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem' }}
+                    onClick={() => setOtpCode(demoCodeNotice)}
+                  >
+                    Auto-Fill
+                  </Button>
+                </div>
+                <div className="h3 fw-bold mb-1 text-white" style={{ letterSpacing: '6px' }}>
+                  {demoCodeNotice}
+                </div>
+                <div className="text-themed-secondary" style={{ fontSize: '0.72rem' }}>
+                  Valid for 5 minutes. Zero SMS charges active.
+                </div>
+              </div>
+            )}
+
+            {otpModalAlert && (
+              <Alert variant={otpModalAlert.type} className="py-2 small mb-3">
+                {otpModalAlert.msg}
+              </Alert>
+            )}
+
+            <Form.Group className="mb-3 text-center">
+              <Form.Label className="form-dark-label d-block text-center mb-2">
+                Enter 6-Digit Code
+              </Form.Label>
+              <Form.Control
+                type="text"
+                maxLength={6}
+                autoFocus
+                className="form-dark-control text-center fw-bold fs-4"
+                style={{ letterSpacing: '8px', maxWidth: '220px', margin: '0 auto' }}
+                placeholder="······"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                disabled={otpVerifying}
+              />
+              <div className="text-themed-secondary small mt-2">
+                {countdown > 0 ? (
+                  <span>Code expires in: <strong className="text-gold">{formatCountdown(countdown)}</strong></span>
+                ) : (
+                  <span className="text-danger">Code expired. Please request a new code.</span>
+                )}
+              </div>
+            </Form.Group>
+
+            <div className="d-flex flex-column gap-2 mt-4">
+              <Button
+                className="btn-gold w-100"
+                onClick={handleConfirmOtp}
+                disabled={otpVerifying || otpCode.trim().length !== 6 || countdown === 0}
+              >
+                {otpVerifying ? (
+                  <>
+                    <Spinner size="sm" className="me-2" />
+                    Verifying…
+                  </>
+                ) : (
+                  'Confirm & Verify Phone'
+                )}
+              </Button>
+              <Button
+                variant="link"
+                className="text-themed-secondary small text-decoration-none text-center"
+                onClick={handleInitiateOtp}
+                disabled={otpSending || otpVerifying}
+              >
+                {otpSending ? 'Resending code…' : "Didn't receive code? Resend SMS OTP"}
+              </Button>
+            </div>
+          </Modal.Body>
+        </Modal>
       </Container>
     </div>
   );

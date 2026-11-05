@@ -181,10 +181,15 @@ const createOrUpdateProfile = async (req, res) => {
     const textToEmbed = `${bio.trim()} ${cleanSkills.join(', ')} ${cleanInterests.join(', ')}`;
 
     // Generate 384-dimensional embedding via Python script
-    const embedding = await generateEmbedding(textToEmbed);
+    let embedding = null;
+    try {
+      embedding = await generateEmbedding(textToEmbed);
+    } catch (embErr) {
+      console.warn('Embedding generation warning:', embErr.message);
+    }
 
     // Check if a profile already exists for this "accountID"
-    const checkQuery = 'SELECT "profileID" FROM profiles WHERE "accountID" = $1';
+    const checkQuery = 'SELECT "profileID", whatsapp, COALESCE(phone_verified, FALSE) AS phone_verified FROM profiles WHERE "accountID" = $1';
     const checkResult = await pool.query(checkQuery, [accountID]);
 
     let savedProfile;
@@ -193,6 +198,11 @@ const createOrUpdateProfile = async (req, res) => {
     if (checkResult.rows.length > 0) {
       // UPDATE existing profile
       isUpdate = true;
+      const existingWhatsapp = checkResult.rows[0].whatsapp;
+      const shouldKeepVerified = cleanWhatsapp && cleanWhatsapp === existingWhatsapp 
+        ? checkResult.rows[0].phone_verified 
+        : false;
+
       const updateQuery = `
         UPDATE profiles
         SET bio = $1,
@@ -202,27 +212,29 @@ const createOrUpdateProfile = async (req, res) => {
             embedding = $5,
             whatsapp = $6,
             linkedin_url = $7,
+            phone_verified = $8,
             "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "accountID" = $8
-        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, avatar_url, embedding, "updatedAt"
+        WHERE "accountID" = $9
+        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, avatar_url, embedding, phone_verified, "updatedAt"
       `;
       const updateResult = await pool.query(updateQuery, [
         bio.trim(),
         cleanSkills,
         cleanInterests,
         expYears,
-        JSON.stringify(embedding),
+        embedding ? JSON.stringify(embedding) : null,
         cleanWhatsapp,
         cleanLinkedin,
+        shouldKeepVerified,
         accountID
       ]);
       savedProfile = updateResult.rows[0];
     } else {
       // INSERT new profile
       const insertQuery = `
-        INSERT INTO profiles ("accountID", bio, skills, interests, experience_years, embedding, whatsapp, linkedin_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, avatar_url, embedding, "updatedAt"
+        INSERT INTO profiles ("accountID", bio, skills, interests, experience_years, embedding, whatsapp, linkedin_url, phone_verified)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
+        RETURNING "profileID", "accountID", bio, skills, interests, experience_years, whatsapp, linkedin_url, avatar_url, embedding, phone_verified, "updatedAt"
       `;
       const insertResult = await pool.query(insertQuery, [
         accountID,
@@ -230,7 +242,7 @@ const createOrUpdateProfile = async (req, res) => {
         cleanSkills,
         cleanInterests,
         expYears,
-        JSON.stringify(embedding),
+        embedding ? JSON.stringify(embedding) : null,
         cleanWhatsapp,
         cleanLinkedin
       ]);
@@ -273,6 +285,7 @@ const getMyProfile = async (req, res) => {
         p.linkedin_url,
         p.avatar_url,
         p.embedding,
+        COALESCE(p.phone_verified, FALSE) AS phone_verified,
         p."updatedAt",
         a.name,
         a.email,
@@ -317,6 +330,7 @@ const getProfileById = async (req, res) => {
         p.linkedin_url,
         p.avatar_url,
         p.embedding,
+        COALESCE(p.phone_verified, FALSE) AS phone_verified,
         p."updatedAt",
         a.name,
         a.email,
