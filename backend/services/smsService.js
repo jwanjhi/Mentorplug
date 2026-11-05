@@ -1,10 +1,11 @@
 /**
- * MentorPlug SMS & WhatsApp Contact Verification Service
+ * MentorPlug Phone SMS Verification Service
+ *
+ * Exclusively verifies phone numbers via SMS OTP to guarantee authentic identity ownership.
  *
  * Supports:
  * 1. Africa's Talking API (Standard across Africa / Kenya) - Live or Sandbox
  * 2. In-App Demo Mode (Zero cost, instant verification code for presentations and defenses)
- * 3. WhatsApp Username Verification (@username / handles)
  */
 
 /**
@@ -35,30 +36,19 @@ function normalizePhoneNumber(rawPhone) {
 }
 
 /**
- * Inspects contact string and normalizes to either phone (+254...) or username (@handle).
- * @param {string} rawContact
- * @returns {{ type: 'phone'|'username', value: string }}
+ * Checks if input is a valid mobile phone number (not a handle/username).
+ * @param {string} input
+ * @returns {boolean}
  */
-function normalizeWhatsAppContact(rawContact) {
-  if (!rawContact || typeof rawContact !== 'string') {
-    return { type: 'phone', value: '' };
-  }
-  const trimmed = rawContact.trim();
-
-  // If starts with '@' or contains alphabet characters, treat as WhatsApp username
+function isValidPhoneNumber(input) {
+  if (!input || typeof input !== 'string') return false;
+  const trimmed = input.trim();
+  // If contains letters or starts with @, it's not a phone number
   if (trimmed.startsWith('@') || /[a-zA-Z]/.test(trimmed)) {
-    const handle = trimmed.replace(/^@/, '').replace(/[^a-zA-Z0-9._-]/g, '');
-    return {
-      type: 'username',
-      value: handle ? `@${handle}` : '',
-    };
+    return false;
   }
-
-  // Otherwise treat as phone number
-  return {
-    type: 'phone',
-    value: normalizePhoneNumber(trimmed),
-  };
+  const digits = trimmed.replace(/\D/g, '');
+  return digits.length >= 9 && digits.length <= 15;
 }
 
 /**
@@ -71,38 +61,18 @@ function generateOtpCode() {
 
 /**
  * Sends OTP via Africa's Talking SMS or provides In-App Demo code.
- * Supports both Phone Numbers and WhatsApp Usernames (@handle).
  *
  * @param {Object} params
- * @param {string} params.contact - E.164 phone number OR @username
+ * @param {string} params.phone - E.164 phone number
  * @param {string} params.code - 6-digit OTP code
- * @returns {Promise<{ success: boolean, isDemo: boolean, isUsername: boolean, demoCode?: string, contact: string, message: string }>}
+ * @returns {Promise<{ success: boolean, isDemo: boolean, demoCode?: string, phone: string, message: string }>}
  */
-async function sendVerificationOtp({ contact, code }) {
-  const normalized = normalizeWhatsAppContact(contact);
-
-  // 1. If it's a WhatsApp Username (@handle)
-  if (normalized.type === 'username') {
-    console.log(`\n========================================`);
-    console.log(`💬 [MentorPlug WhatsApp Username Verification]`);
-    console.log(`Target Handle: ${normalized.value}`);
-    console.log(`Verification Token: ${code}`);
-    console.log(`Expires in: 5 minutes`);
-    console.log(`Direct Link: https://wa.me/${normalized.value.replace(/^@/, '')}?text=MentorPlug%20Verification%20Code:%20${code}`);
-    console.log(`========================================\n`);
-
-    return {
-      success: true,
-      isDemo: true,
-      isUsername: true,
-      contact: normalized.value,
-      demoCode: code,
-      message: `Verification code generated for WhatsApp handle ${normalized.value}. Click to test your handle or enter the code.`,
-    };
+async function sendOtpSms({ phone, code }) {
+  if (!isValidPhoneNumber(phone)) {
+    throw new Error('A valid mobile phone number is required for SMS OTP verification.');
   }
 
-  // 2. If it's a Phone Number
-  const cleanPhone = normalized.value;
+  const cleanPhone = normalizePhoneNumber(phone);
   const atApiKey = process.env.AT_API_KEY;
   const atUsername = process.env.AT_USERNAME || 'sandbox';
   const messageText = `Your MentorPlug verification code is ${code}. Valid for 5 minutes. Do not share this code.`;
@@ -143,8 +113,7 @@ async function sendVerificationOtp({ contact, code }) {
         return {
           success: true,
           isDemo: false,
-          isUsername: false,
-          contact: cleanPhone,
+          phone: cleanPhone,
           message: `SMS OTP successfully sent to ${cleanPhone}.`,
         };
       } else {
@@ -166,8 +135,7 @@ async function sendVerificationOtp({ contact, code }) {
   return {
     success: true,
     isDemo: true,
-    isUsername: false,
-    contact: cleanPhone,
+    phone: cleanPhone,
     demoCode: code,
     message: `Verification code generated for ${cleanPhone}. (In-App Demo Mode active - zero SMS costs)`,
   };
@@ -175,7 +143,7 @@ async function sendVerificationOtp({ contact, code }) {
 
 module.exports = {
   normalizePhoneNumber,
-  normalizeWhatsAppContact,
+  isValidPhoneNumber,
   generateOtpCode,
-  sendVerificationOtp,
+  sendOtpSms,
 };

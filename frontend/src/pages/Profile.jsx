@@ -145,37 +145,51 @@ export default function Profile() {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  /* Send verification OTP code to user's phone or WhatsApp username */
+  /* Send SMS OTP code exclusively to user's mobile phone number */
   const handleInitiateOtp = async () => {
-    const contact = formik.values.whatsapp?.trim();
-    if (!contact || contact.length < 3) {
-      setAlert({ type: 'danger', msg: 'Please enter a valid phone number (+254...) or WhatsApp username (@handle) before verifying.' });
+    const phone = formik.values.whatsapp?.trim();
+    if (!phone) {
+      setAlert({ type: 'danger', msg: 'Please enter your mobile phone number before requesting SMS verification.' });
+      return;
+    }
+
+    // Require real phone number with digits; handles/usernames cannot be proven via SMS
+    if (phone.startsWith('@') || /[a-zA-Z]/.test(phone)) {
+      setAlert({
+        type: 'warning',
+        msg: 'SMS verification requires a real mobile phone number (e.g. +254 712 345 678) to prove authentic ownership. Handles (@username) can be saved as optional unverified contact links.',
+      });
+      return;
+    }
+
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 9) {
+      setAlert({ type: 'danger', msg: 'Please enter a valid phone number with area code (e.g. +254 712 345 678).' });
       return;
     }
 
     setOtpSending(true);
     setOtpModalAlert(null);
     try {
-      const res = await api.post('/auth/phone/send-otp', { contact });
-      setIsContactUsername(Boolean(res.data.isUsername));
-      setVerifiedContactTarget(res.data.contact);
+      const res = await api.post('/auth/phone/send-otp', { phone });
+      setVerifiedContactTarget(res.data.phone);
       setDemoCodeNotice(res.data.isDemo ? res.data.demoCode : null);
       setCountdown(res.data.expiresInSeconds || 300);
       setOtpCode('');
       setShowOtpModal(true);
       setOtpModalAlert({
         type: 'info',
-        msg: res.data.message || 'Verification code dispatched.',
+        msg: res.data.message || 'SMS verification code dispatched.',
       });
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to dispatch verification code. Please check your contact and try again.';
+      const msg = err.response?.data?.message || 'Failed to dispatch verification code. Please check the number and try again.';
       setAlert({ type: 'danger', msg });
     } finally {
       setOtpSending(false);
     }
   };
 
-  /* Confirm 6-digit OTP code */
+  /* Confirm 6-digit OTP code to verify phone ownership */
   const handleConfirmOtp = async () => {
     if (!otpCode || otpCode.trim().length !== 6) {
       setOtpModalAlert({ type: 'danger', msg: 'Please enter all 6 digits of your verification code.' });
@@ -185,17 +199,17 @@ export default function Profile() {
     setOtpModalAlert(null);
     try {
       const res = await api.post('/auth/phone/verify-otp', {
-        contact: verifiedContactTarget || formik.values.whatsapp?.trim(),
+        phone: verifiedContactTarget || formik.values.whatsapp?.trim(),
         code: otpCode.trim(),
       });
       setPhoneVerified(true);
-      if (res.data.contact) {
-        formik.setFieldValue('whatsapp', res.data.contact);
+      if (res.data.phone) {
+        formik.setFieldValue('whatsapp', res.data.phone);
       }
       setShowOtpModal(false);
       setAlert({
         type: 'success',
-        msg: res.data.message || '✓ Contact successfully verified and linked to your MentorPlug profile!',
+        msg: '✓ Phone number successfully verified! Your verified identity badge is now active.',
       });
     } catch (err) {
       const msg = err.response?.data?.message || 'Verification failed. Please check the code and try again.';
@@ -509,10 +523,10 @@ export default function Profile() {
 
                     <Form.Group className="mb-3" controlId="profileWhatsapp">
                       <div className="d-flex align-items-center justify-content-between mb-1">
-                        <Form.Label className="form-dark-label mb-0">WhatsApp Number or @Username</Form.Label>
+                        <Form.Label className="form-dark-label mb-0">WhatsApp / Phone Number</Form.Label>
                         {phoneVerified ? (
                           <Badge bg="success" className="d-inline-flex align-items-center gap-1 px-2 py-1" style={{ fontSize: '0.72rem' }}>
-                            {formik.values.whatsapp?.startsWith('@') ? '✓ Verified Handle' : '✓ Verified Phone'}
+                            ✓ Verified Phone
                           </Badge>
                         ) : (
                           <span className="badge bg-secondary text-white" style={{ fontSize: '0.70rem', opacity: 0.85 }}>
@@ -540,15 +554,15 @@ export default function Profile() {
                           size="sm"
                           style={{ whiteSpace: 'nowrap', borderRadius: 'var(--mp-radius-pill)', fontWeight: 600, padding: '0.4rem 0.9rem' }}
                           onClick={handleInitiateOtp}
-                          disabled={otpSending || formik.isSubmitting || !formik.values.whatsapp || formik.values.whatsapp.trim().length < 3}
+                          disabled={otpSending || formik.isSubmitting || !formik.values.whatsapp || formik.values.whatsapp.trim().length < 7}
                         >
-                          {otpSending ? <Spinner animation="border" size="sm" /> : (phoneVerified ? 'Re-verify' : 'Verify Contact')}
+                          {otpSending ? <Spinner animation="border" size="sm" /> : (phoneVerified ? 'Re-verify' : 'Verify SMS')}
                         </Button>
                       </div>
                       <Form.Text className="text-themed-secondary d-block mt-1" style={{ fontSize: '0.72rem' }}>
                         {phoneVerified 
-                          ? 'Phone number verified. Enables 1-click WhatsApp messaging upon match acceptance.' 
-                          : 'Enter your phone number (e.g. +254712345678) or WhatsApp handle (e.g. @username).'}
+                          ? 'Phone number verified via SMS OTP. Enables 1-click WhatsApp messaging upon match acceptance.' 
+                          : 'Verify your mobile number via SMS OTP to earn the verified badge.'}
                       </Form.Text>
                       {formik.touched.whatsapp && formik.errors.whatsapp && (
                         <Form.Control.Feedback type="invalid" className="d-block small mt-1">
@@ -616,7 +630,7 @@ export default function Profile() {
           </Row>
         </Form>
 
-        {/* Phone & WhatsApp Username Verification Modal */}
+        {/* Phone SMS OTP Verification Modal */}
         <Modal
           show={showOtpModal}
           onHide={() => !otpVerifying && setShowOtpModal(false)}
@@ -625,30 +639,13 @@ export default function Profile() {
         >
           <Modal.Header closeButton={!otpVerifying} closeVariant="white" className="border-0 px-4 pt-4 pb-2">
             <Modal.Title className="fw-bold text-themed-primary h5 mb-0" style={{ fontFamily: 'var(--font-heading)' }}>
-              {isContactUsername ? 'Verify WhatsApp Username' : 'Verify Phone Number'}
+              Verify Phone via SMS OTP
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="px-4 py-3" style={{ background: 'var(--mp-bg-card)' }}>
             <p className="text-themed-secondary small mb-3">
-              {isContactUsername
-                ? <>Verifying WhatsApp handle: <strong className="text-gold">{verifiedContactTarget || formik.values.whatsapp}</strong>.</>
-                : <>We dispatched a 6-digit verification code to <strong>{verifiedContactTarget || formik.values.whatsapp}</strong>.</>}
+              We dispatched a 6-digit verification code to <strong>{verifiedContactTarget || formik.values.whatsapp}</strong> to confirm your phone ownership.
             </p>
-
-            {/* If username, provide direct 1-click test link */}
-            {isContactUsername && (
-              <div className="mb-3 text-center">
-                <a
-                  href={getWhatsAppUrl(verifiedContactTarget || formik.values.whatsapp, `MentorPlug Verification Code: ${demoCodeNotice || ''}`)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-sm fw-semibold d-inline-flex align-items-center gap-1 shadow-sm"
-                  style={{ background: '#25D366', color: '#fff', borderRadius: 'var(--mp-radius-pill)', fontSize: '0.78rem', padding: '0.35rem 0.9rem' }}
-                >
-                  <span>💬</span> Open WhatsApp to Test Handle
-                </a>
-              </div>
-            )}
 
             {/* Smart In-App Demo Display */}
             {demoCodeNotice && (
@@ -661,7 +658,7 @@ export default function Profile() {
               >
                 <div className="d-flex align-items-center justify-content-between mb-1">
                   <span className="small fw-bold text-warning">
-                    💡 {isContactUsername ? 'WhatsApp Handle Verification Token' : 'In-App Demo SMS OTP'}
+                    💡 In-App Demo SMS OTP
                   </span>
                   <Button
                     size="sm"
@@ -676,7 +673,7 @@ export default function Profile() {
                   {demoCodeNotice}
                 </div>
                 <div className="text-themed-secondary" style={{ fontSize: '0.72rem' }}>
-                  Valid for 5 minutes. No fees required.
+                  Valid for 5 minutes. Zero SMS charges active.
                 </div>
               </div>
             )}
@@ -723,7 +720,7 @@ export default function Profile() {
                     Verifying…
                   </>
                 ) : (
-                  isContactUsername ? 'Confirm & Verify Handle' : 'Confirm & Verify Phone'
+                  'Confirm & Verify Phone'
                 )}
               </Button>
               <Button
@@ -732,7 +729,7 @@ export default function Profile() {
                 onClick={handleInitiateOtp}
                 disabled={otpSending || otpVerifying}
               >
-                {otpSending ? 'Resending code…' : (isContactUsername ? "Didn't receive code? Resend Handle Code" : "Didn't receive code? Resend SMS OTP")}
+                {otpSending ? 'Resending code…' : "Didn't receive code? Resend SMS OTP"}
               </Button>
             </div>
           </Modal.Body>
