@@ -279,7 +279,7 @@ export default function Profile() {
                   <h5 className="fw-bold text-themed-primary mb-0" style={{ fontFamily: 'var(--font-heading)' }}>
                     Core Profile & Expertise
                   </h5>
-                  <span className="text-themed-secondary small">NLP Matched</span>
+
                 </div>
 
                 {/* Bio */}
