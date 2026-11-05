@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
+import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
   if (!rawPhone) return '';
@@ -82,7 +83,7 @@ const MentorCard = ({ match, onRequest, onRate, user }) => {
             </div>
             {mentor?.profile?.whatsapp && (
               <a
-                href={`https://wa.me/${cleanPhoneForWhatsApp(mentor.profile.whatsapp)}?text=${encodeURIComponent(`Hi ${mentor.name}, our mentorship match on MentorPlug was accepted! Looking forward to learning from you.`)}`}
+                href={getWhatsAppUrl(mentor.profile.whatsapp, `Hi ${mentor.name}, our mentorship match on MentorPlug was accepted! Looking forward to learning from you.`)}
                 target="_blank"
                 rel="noreferrer"
                 className="btn w-100 mb-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm"

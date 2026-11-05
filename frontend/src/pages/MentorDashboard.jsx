@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
+import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
   if (!rawPhone) return '';
@@ -95,7 +96,7 @@ const RequestRow = ({ match, onAccept, onDecline, onRate, user }) => {
             <div className="d-flex gap-2 flex-wrap">
               {mentee?.profile?.whatsapp && (
                 <a
-                  href={`https://wa.me/${cleanPhoneForWhatsApp(mentee.profile.whatsapp)}?text=${encodeURIComponent(`Hi ${mentee.name}, I accepted your mentorship request on MentorPlug! Let's connect.`)}`}
+                  href={getWhatsAppUrl(mentee.profile.whatsapp, `Hi ${mentee.name}, I accepted your mentorship request on MentorPlug! Let's connect.`)}
                   target="_blank"
                   rel="noreferrer"
                   className="btn btn-sm fw-semibold d-flex align-items-center gap-1 shadow-sm"
