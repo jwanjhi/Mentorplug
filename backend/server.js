@@ -22,6 +22,15 @@ app.use(express.json());
 // e.g. GET http://localhost:5000/uploads/avatars/avatar_3.jpg
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Root health endpoints
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'MentorPlug API is running' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profiles', profileRoutes);
