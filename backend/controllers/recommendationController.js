@@ -101,7 +101,7 @@ const getRecommendations = async (req, res) => {
        LEFT JOIN profiles p ON p."accountID" = m."mentorID"
        LEFT JOIN feedback f ON f."matchID" = m."matchID" AND f."giverID" = $1
        WHERE  m."menteeID" = $1
-       ORDER  BY m.similarity_score DESC`,
+       ORDER  BY m.similarity_score DESC LIMIT 6`,
       [menteeID]
     );
 
@@ -176,7 +176,7 @@ const runAndSaveRecommendations = async (req, res) => {
     // Upsert all ranked matches into DB as 'suggested'
     const mentorMap = new Map(mentorRows.map((m) => [m.accountID, m]));
     const saved = [];
-    for (const item of ranked) {
+    for (const item of ranked.slice(0, 6)) {
       const mentor = mentorMap.get(item.id);
       if (!mentor) continue;
       const { rows: upsertRows } = await pool.query(

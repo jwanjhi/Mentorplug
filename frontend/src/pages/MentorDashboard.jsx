@@ -6,6 +6,15 @@ import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
 
+const cleanPhoneForWhatsApp = (rawPhone) => {
+  if (!rawPhone) return '';
+  let digits = rawPhone.replace(/[^0-9]/g, '');
+  if (digits.startsWith('0') && digits.length === 10) {
+    digits = '254' + digits.slice(1);
+  }
+  return digits;
+};
+
 /* ── Stat Card ──────────────────────────────────────────────────────────────── */
 const StatCard = ({ label, value, sub }) => (
   <div className="card-mentor-custom p-4 text-center h-100">
@@ -86,7 +95,7 @@ const RequestRow = ({ match, onAccept, onDecline, onRate, user }) => {
             <div className="d-flex gap-2 flex-wrap">
               {mentee?.profile?.whatsapp && (
                 <a
-                  href={`https://wa.me/${mentee.profile.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${mentee.name}, I accepted your mentorship request on MentorPlug! Let's connect.`)}`}
+                  href={`https://wa.me/${cleanPhoneForWhatsApp(mentee.profile.whatsapp)}?text=${encodeURIComponent(`Hi ${mentee.name}, I accepted your mentorship request on MentorPlug! Let's connect.`)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="btn btn-sm fw-semibold d-flex align-items-center gap-1 shadow-sm"

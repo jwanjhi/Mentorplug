@@ -22,7 +22,7 @@ const submitFeedback = async (req, res) => {
     // If matchID is provided, verify match and deduce receiverID if missing
     if (matchID) {
       const matchRes = await pool.query(
-        'SELECT "matchID", "menteeID", "mentorID" FROM matches WHERE "matchID" = $1',
+        'SELECT "matchID", "menteeID", "mentorID", status FROM matches WHERE "matchID" = $1',
         [matchID]
       );
       if (matchRes.rows.length === 0) {
@@ -32,6 +32,10 @@ const submitFeedback = async (req, res) => {
       const match = matchRes.rows[0];
       if (match.menteeID !== giverID && match.mentorID !== giverID) {
         return res.status(403).json({ error: 'You are not a participant in this match' });
+      }
+
+      if (match.status !== 'accepted') {
+        return res.status(403).json({ error: 'Feedback can only be submitted for accepted mentorship connections.' });
       }
 
       if (!targetReceiverID) {

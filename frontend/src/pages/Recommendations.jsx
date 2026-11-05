@@ -6,6 +6,15 @@ import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
 
+const cleanPhoneForWhatsApp = (rawPhone) => {
+  if (!rawPhone) return '';
+  let digits = rawPhone.replace(/[^0-9]/g, '');
+  if (digits.startsWith('0') && digits.length === 10) {
+    digits = '254' + digits.slice(1);
+  }
+  return digits;
+};
+
 /* ── Single Mentor Card ───────────────────────────────────────────────────────── */
 const MentorCard = ({ match, onRequest, onRate, user }) => {
   const score = Math.round((match.similarity_score ?? 0) * 100);
@@ -73,7 +82,7 @@ const MentorCard = ({ match, onRequest, onRate, user }) => {
             </div>
             {mentor?.profile?.whatsapp && (
               <a
-                href={`https://wa.me/${mentor.profile.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${mentor.name}, our mentorship match on MentorPlug was accepted! Looking forward to learning from you.`)}`}
+                href={`https://wa.me/${cleanPhoneForWhatsApp(mentor.profile.whatsapp)}?text=${encodeURIComponent(`Hi ${mentor.name}, our mentorship match on MentorPlug was accepted! Looking forward to learning from you.`)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn w-100 mb-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm"
@@ -99,6 +108,18 @@ const MentorCard = ({ match, onRequest, onRate, user }) => {
                 View LinkedIn ↗
               </a>
             )}
+
+            <Button
+              variant="outline-secondary"
+              className="btn-outline-gold w-100 mt-2"
+              size="sm"
+              onClick={() => onRate(match)}
+              style={{ fontSize: '0.82rem', padding: '0.38rem 0.75rem', borderRadius: 'var(--mp-radius-pill)' }}
+            >
+              {match.feedback
+                ? `★ ${match.feedback.rating}/5 Rated • Update Review`
+                : '★ Rate Mentorship Session'}
+            </Button>
           </div>
         ) : match.status === 'pending' ? (
           <Button className="btn-gold w-100" disabled style={{ opacity: 0.7, cursor: 'not-allowed' }}>
@@ -117,18 +138,7 @@ const MentorCard = ({ match, onRequest, onRate, user }) => {
           </Button>
         )}
 
-        {/* Post-engagement feedback & rating button (Section 3.8.5) */}
-        <Button
-          variant="outline-secondary"
-          className="btn-outline-gold w-100 mt-2"
-          size="sm"
-          onClick={() => onRate(match)}
-          style={{ fontSize: '0.82rem', padding: '0.38rem 0.75rem', borderRadius: 'var(--mp-radius-pill)' }}
-        >
-          {match.feedback
-            ? `★ ${match.feedback.rating}/5 Rated • Update Review`
-            : '★ Rate Recommendation'}
-        </Button>
+
       </div>
     </div>
   );
@@ -354,7 +364,7 @@ export default function Recommendations() {
         <div className="hero-banner-content">
           <span className="tag-gold-outline mb-2 d-inline-block">Mentee Portal</span>
           <h1 className="h2 fw-bolder mb-2 text-themed-primary" style={{ fontFamily: 'var(--font-heading)' }}>
-            Discover Your Ideal Mentors
+            Your Top 6 Curated Mentors
           </h1>
           <p className="text-themed-secondary mb-3 small" style={{ lineHeight: '1.6' }}>
             Semantic profile matching analyzes your skills, interests, and aspirations to connect you with expert guides and industry mentors.
