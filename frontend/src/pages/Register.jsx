@@ -1,48 +1,57 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/GoogleAuthButton';
 
+const registerValidationSchema = Yup.object({
+  name: Yup.string()
+    .trim()
+    .min(2, 'Full name must be at least 2 characters')
+    .required('Full name is required'),
+  email: Yup.string()
+    .trim()
+    .email('Please enter a valid email address')
+    .required('Email address is required'),
+  password: Yup.string()
+    .min(6, 'Password must be at least 6 characters')
+    .required('Password is required'),
+  role: Yup.string()
+    .oneOf(['mentee', 'mentor'], 'Please select a valid role')
+    .required('Please select whether you are a mentee or mentor'),
+});
+
 const Register = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState('mentee'); // Default to mentee
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!name || !email || !password || !role) {
-      setError('Please fill in all required fields.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password should be at least 6 characters long.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const user = await register(name, email, password, role);
-
-      // Once registered, direct them immediately to complete their profile
-      navigate('/profile', { replace: true, state: { isNewUser: true } });
-    } catch (err) {
-      const msg = err.response?.data?.message || 'Registration failed. Please try again.';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const formik = useFormik({
+    initialValues: {
+      name: '',
+      email: '',
+      password: '',
+      role: 'mentee',
+    },
+    validationSchema: registerValidationSchema,
+    onSubmit: async (values, { setSubmitting }) => {
+      setError(null);
+      try {
+        await register(values.name, values.email, values.password, values.role);
+        // Direct new user to complete their profile
+        navigate('/profile', { replace: true, state: { isNewUser: true } });
+      } catch (err) {
+        const msg = err.response?.data?.message || 'Registration failed. Please try again.';
+        setError(msg);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+  });
 
   return (
     <div className="auth-page-bg py-5">
@@ -78,7 +87,7 @@ const Register = () => {
                   <hr className="flex-grow-1 border-secondary border-opacity-25 my-0" />
                 </div>
 
-                <Form onSubmit={handleSubmit}>
+                <Form onSubmit={formik.handleSubmit} noValidate>
                   {/* Role Selector */}
                   <Form.Group className="mb-4">
                     <Form.Label className="form-dark-label d-block text-center mb-2">
@@ -86,14 +95,14 @@ const Register = () => {
                     </Form.Label>
                     <div className="role-pill-group">
                       <div
-                        className={`role-pill-btn ${role === 'mentee' ? 'active' : ''}`}
-                        onClick={() => setRole('mentee')}
+                        className={`role-pill-btn ${formik.values.role === 'mentee' ? 'active' : ''}`}
+                        onClick={() => formik.setFieldValue('role', 'mentee')}
                       >
                         Mentee (Learner)
                       </div>
                       <div
-                        className={`role-pill-btn ${role === 'mentor' ? 'active' : ''}`}
-                        onClick={() => setRole('mentor')}
+                        className={`role-pill-btn ${formik.values.role === 'mentor' ? 'active' : ''}`}
+                        onClick={() => formik.setFieldValue('role', 'mentor')}
                       >
                         Mentor (Guide)
                       </div>
@@ -105,13 +114,20 @@ const Register = () => {
                     <Form.Label className="form-dark-label">Full Name</Form.Label>
                     <Form.Control
                       type="text"
+                      name="name"
                       placeholder="e.g. Joy Wambui"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      value={formik.values.name}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      isInvalid={formik.touched.name && !!formik.errors.name}
                       className="form-dark-control"
-                      required
-                      disabled={loading}
+                      disabled={formik.isSubmitting}
                     />
+                    {formik.touched.name && formik.errors.name && (
+                      <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                        {formik.errors.name}
+                      </Form.Control.Feedback>
+                    )}
                   </Form.Group>
 
                   {/* Email */}
@@ -119,13 +135,20 @@ const Register = () => {
                     <Form.Label className="form-dark-label">Email Address</Form.Label>
                     <Form.Control
                       type="email"
+                      name="email"
                       placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={formik.values.email}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      isInvalid={formik.touched.email && !!formik.errors.email}
                       className="form-dark-control"
-                      required
-                      disabled={loading}
+                      disabled={formik.isSubmitting}
                     />
+                    {formik.touched.email && formik.errors.email && (
+                      <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                        {formik.errors.email}
+                      </Form.Control.Feedback>
+                    )}
                   </Form.Group>
 
                   {/* Password with Show/Hide toggle */}
@@ -134,12 +157,14 @@ const Register = () => {
                     <div className="position-relative">
                       <Form.Control
                         type={showPassword ? 'text' : 'password'}
+                        name="password"
                         placeholder="At least 6 characters"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        value={formik.values.password}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        isInvalid={formik.touched.password && !!formik.errors.password}
                         className="form-dark-control pe-5"
-                        required
-                        disabled={loading}
+                        disabled={formik.isSubmitting}
                       />
                       <button
                         type="button"
@@ -161,15 +186,20 @@ const Register = () => {
                         )}
                       </button>
                     </div>
+                    {formik.touched.password && formik.errors.password && (
+                      <Form.Control.Feedback type="invalid" className="d-block small mt-1">
+                        {formik.errors.password}
+                      </Form.Control.Feedback>
+                    )}
                   </Form.Group>
 
                   {/* Create Account Button */}
                   <Button
                     type="submit"
                     className="btn-gold w-100 py-2 d-flex align-items-center justify-content-center"
-                    disabled={loading}
+                    disabled={formik.isSubmitting}
                   >
-                    {loading ? (
+                    {formik.isSubmitting ? (
                       <>
                         <Spinner animation="border" size="sm" className="me-2" />
                         Creating Account...
