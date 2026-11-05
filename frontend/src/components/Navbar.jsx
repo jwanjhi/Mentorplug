@@ -25,40 +25,40 @@ const AppNavbar = () => {
     <Navbar className="floating-bottom-nav" variant={isDark ? 'dark' : 'light'}>
       <Container fluid className="d-flex align-items-center justify-content-between p-0">
         {/* Left: Text-only Logo ("Mentor" in white/navy and "plug" in gold) */}
-        <Navbar.Brand as={Link} to="/" className="brand-text me-3 p-0">
+        <Navbar.Brand as={Link} to="/" className="brand-text me-2 me-md-3 p-0 text-nowrap">
           Mentor<span className="brand-plug">plug</span>
         </Navbar.Brand>
 
         {/* Right Links */}
         <Nav className="d-flex flex-row align-items-center gap-1">
-          <Nav.Link as={Link} to="/" className={isActive('/') ? 'active' : ''}>
+          <Nav.Link as={Link} to="/" className={`text-nowrap ${isActive('/') ? 'active' : ''}`}>
             Home
           </Nav.Link>
 
-          <Nav.Link as={Link} to="/#how-it-works" onClick={scrollToAbout}>
+          <Nav.Link as={Link} to="/#how-it-works" onClick={scrollToAbout} className="text-nowrap d-none d-sm-inline-block">
             About
           </Nav.Link>
 
           {isAuthenticated ? (
             <>
               {user?.role === 'mentee' && (
-                <Nav.Link as={Link} to="/recommendations" className={isActive('/recommendations') ? 'active' : ''}>
+                <Nav.Link as={Link} to="/recommendations" className={`text-nowrap ${isActive('/recommendations') ? 'active' : ''}`}>
                   Matches
                 </Nav.Link>
               )}
               {user?.role === 'mentor' && (
-                <Nav.Link as={Link} to="/mentor-dashboard" className={isActive('/mentor-dashboard') ? 'active' : ''}>
+                <Nav.Link as={Link} to="/mentor-dashboard" className={`text-nowrap ${isActive('/mentor-dashboard') ? 'active' : ''}`}>
                   Dashboard
                 </Nav.Link>
               )}
-              <Nav.Link as={Link} to="/profile" className={isActive('/profile') ? 'active' : ''}>
+              <Nav.Link as={Link} to="/profile" className={`text-nowrap ${isActive('/profile') ? 'active' : ''}`}>
                 Profile
               </Nav.Link>
               <Button
                 variant={isDark ? 'outline-light' : 'outline-dark'}
                 size="sm"
                 onClick={logout}
-                className="ms-1"
+                className="ms-1 text-nowrap"
                 style={{ borderRadius: '50px', fontSize: '0.82rem', padding: '0.35rem 0.85rem' }}
               >
                 Sign Out
@@ -69,14 +69,14 @@ const AppNavbar = () => {
               <Nav.Link
                 as={Link}
                 to="/login"
-                className={isActive('/login') ? 'active' : ''}
+                className={`text-nowrap ${isActive('/login') ? 'active' : ''}`}
               >
                 Sign In
               </Nav.Link>
               <Button
                 as={Link}
                 to="/register"
-                className="btn-gold ms-1"
+                className="btn-gold ms-1 text-nowrap"
                 size="sm"
                 style={{ fontSize: '0.84rem', padding: '0.4rem 1rem' }}
               >
