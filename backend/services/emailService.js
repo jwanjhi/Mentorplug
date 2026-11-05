@@ -1,58 +1,19 @@
 const nodemailer = require('nodemailer');
 
 /**
- * Creates and returns a nodemailer transporter.
- * If SMTP credentials are configured in .env (or Render), it uses them (e.g. Gmail App Password).
- * Automatically cleans any spaces from 16-letter Google App Passwords.
- * Otherwise, it falls back to console logging simulation in development.
+ * Universal Email Sender for MentorPlug
+ *
+ * Supports:
+ * 1. Resend REST API (HTTPS Port 443) — Recommended for Render / Cloud hosts to bypass SMTP port blocking.
+ * 2. Brevo REST API (HTTPS Port 443) — Alternative cloud email API.
+ * 3. SMTP / Nodemailer (Ports 465 / 587) — Standard fallback for local dev.
+ * 4. Mock console logger when no credentials provided.
  */
-const getTransporter = async () => {
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-    const cleanPass = process.env.SMTP_PASS.replace(/\s+/g, '');
-    const cleanUser = process.env.SMTP_USER.trim();
-    const host = process.env.SMTP_HOST ? process.env.SMTP_HOST.trim() : 'smtp.gmail.com';
-    const isGmail = host.includes('gmail') || cleanUser.includes('gmail');
-
-    if (isGmail) {
-      return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: cleanUser,
-          pass: cleanPass,
-        },
-      });
-    }
-
-    const port = parseInt(process.env.SMTP_PORT, 10) || 465;
-    const secure = port === 465 || process.env.SMTP_SECURE === 'true';
-
-    return nodemailer.createTransport({
-      host: host,
-      port: port,
-      secure: secure,
-      auth: {
-        user: cleanUser,
-        pass: cleanPass,
-      },
-    });
-  }
-
-  // Development fallback: mock transporter that logs preview to console
-  return {
-    isMock: true,
-    sendMail: async (options) => {
-      console.log('\n──────────────────────────────────────────────────────────');
-      console.log('📧 [MOCK EMAIL LOG - Configure SMTP_USER and SMTP_PASS on Render for real delivery]');
-      console.log(`To: ${options.to}`);
-      console.log(`Subject: ${options.subject}`);
-      console.log('Preview:\n', options.text ? options.text.slice(0, 200) + '...' : '');
-      console.log('──────────────────────────────────────────────────────────\n');
-      return { messageId: `mock-${Date.now()}` };
-    },
-  };
-};
 
 const getFromAddress = () => {
+  if (process.env.RESEND_API_KEY) {
+    return process.env.EMAIL_FROM || 'MentorPlug <onboarding@resend.dev>';
+  }
   return process.env.EMAIL_FROM || (process.env.SMTP_USER ? `"MentorPlug" <${process.env.SMTP_USER.trim()}>` : '"MentorPlug" <no-reply@mentorplug.me>');
 };
 
@@ -66,11 +27,119 @@ const cleanPhoneForWhatsApp = (rawPhone) => {
 };
 
 /**
+ * Sends an email using the best available provider (Resend HTTPS API > Brevo HTTPS API > SMTP).
+ */
+const sendEmail = async ({ to, subject, html, text }) => {
+  const recipient = Array.isArray(to) ? to : [to];
+
+  // 1. Resend REST API (Over HTTPS Port 443 - zero firewall blocks on Render)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: getFromAddress(),
+          to: recipient,
+          subject: subject,
+          text: text,
+          html: html,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || `Resend API returned status ${res.status}`);
+      }
+
+      console.log(`📧 [RESEND] Dispatched email to ${recipient.join(', ')} (ID: ${data.id})`);
+      return { success: true, provider: 'resend', messageId: data.id };
+    } catch (resendErr) {
+      console.error('Resend dispatch failed:', resendErr.message);
+      throw resendErr;
+    }
+  }
+
+  // 2. Brevo REST API (Over HTTPS Port 443)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY.trim(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'MentorPlug', email: process.env.BREVO_SENDER_EMAIL || 'no-reply@mentorplug.me' },
+          to: recipient.map(e => ({ email: e })),
+          subject: subject,
+          textContent: text,
+          htmlContent: html,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || `Brevo API returned status ${res.status}`);
+      }
+
+      console.log(`📧 [BREVO] Dispatched email to ${recipient.join(', ')}`);
+      return { success: true, provider: 'brevo', messageId: data.messageId };
+    } catch (brevoErr) {
+      console.error('Brevo dispatch failed:', brevoErr.message);
+      throw brevoErr;
+    }
+  }
+
+  // 3. SMTP / Nodemailer Fallback
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const cleanPass = process.env.SMTP_PASS.replace(/\s+/g, '');
+    const cleanUser = process.env.SMTP_USER.trim();
+    const host = process.env.SMTP_HOST ? process.env.SMTP_HOST.trim() : 'smtp.gmail.com';
+    const isGmail = host.includes('gmail') || cleanUser.includes('gmail');
+
+    const transporter = isGmail
+      ? nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: cleanUser, pass: cleanPass },
+        })
+      : nodemailer.createTransport({
+          host: host,
+          port: parseInt(process.env.SMTP_PORT, 10) || 465,
+          secure: (parseInt(process.env.SMTP_PORT, 10) || 465) === 465,
+          auth: { user: cleanUser, pass: cleanPass },
+        });
+
+    const info = await transporter.sendMail({
+      from: getFromAddress(),
+      to: recipient.join(', '),
+      subject: subject,
+      text: text,
+      html: html,
+    });
+
+    console.log(`📧 [SMTP] Dispatched email to ${recipient.join(', ')} (ID: ${info.messageId})`);
+    return { success: true, provider: 'smtp', messageId: info.messageId };
+  }
+
+  // 4. Mock Logger (when no provider is configured)
+  console.log('\n──────────────────────────────────────────────────────────');
+  console.log('📧 [MOCK EMAIL - Add RESEND_API_KEY on Render for real delivery]');
+  console.log(`To: ${recipient.join(', ')}`);
+  console.log(`Subject: ${subject}`);
+  console.log('Preview:\n', text ? text.slice(0, 200) + '...' : '');
+  console.log('──────────────────────────────────────────────────────────\n');
+  return { success: true, provider: 'mock', messageId: `mock-${Date.now()}` };
+};
+
+/**
  * 1. Welcome Email on User Registration
  */
 const notifyWelcomeUser = async ({ email, name, role }) => {
   try {
-    const mailer = await getTransporter();
     const isMentor = role === 'mentor';
 
     const htmlContent = `
@@ -116,8 +185,7 @@ Visit https://mentorplug.me/profile to complete your profile and begin connectin
 MentorPlug Team
     `.trim();
 
-    await mailer.sendMail({
-      from: getFromAddress(),
+    await sendEmail({
       to: email,
       subject: `Welcome to MentorPlug, ${name}! 🎉`,
       text: textContent,
@@ -133,7 +201,6 @@ MentorPlug Team
  */
 const notifySignInAlert = async ({ email, name, ip, userAgent }) => {
   try {
-    const mailer = await getTransporter();
     const timestamp = new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' });
 
     const htmlContent = `
@@ -172,8 +239,7 @@ If this was you, no action is needed.
 MentorPlug Security
     `.trim();
 
-    await mailer.sendMail({
-      from: getFromAddress(),
+    await sendEmail({
       to: email,
       subject: `🔒 Security Alert: New Sign-In to MentorPlug`,
       text: textContent,
@@ -189,8 +255,6 @@ MentorPlug Security
  */
 const notifyIncomingMatchRequest = async ({ mentorEmail, mentorName, menteeName, introMessage }) => {
   try {
-    const mailer = await getTransporter();
-
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -235,8 +299,7 @@ Review the request on your dashboard: https://mentorplug.me/mentor-dashboard
 MentorPlug
     `.trim();
 
-    await mailer.sendMail({
-      from: getFromAddress(),
+    await sendEmail({
       to: mentorEmail,
       subject: `✦ New Mentorship Request from ${menteeName}`,
       text: textContent,
@@ -252,7 +315,6 @@ MentorPlug
  */
 const notifyMenteeMatchAccepted = async ({ menteeEmail, menteeName, mentorName, mentorEmail, mentorWhatsapp }) => {
   try {
-    const mailer = await getTransporter();
     const formattedPhone = cleanPhoneForWhatsApp(mentorWhatsapp);
     const whatsappLink = formattedPhone
       ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(`Hi ${mentorName}, our mentorship match on MentorPlug was accepted! Looking forward to learning from you.`)}`
@@ -305,8 +367,7 @@ Reach out to schedule your introductory conversation!
 MentorPlug
     `.trim();
 
-    await mailer.sendMail({
-      from: getFromAddress(),
+    await sendEmail({
       to: menteeEmail,
       subject: `🎉 Mentorship Accepted: ${mentorName} is your mentor!`,
       text: textContent,
@@ -321,45 +382,51 @@ MentorPlug
  * Diagnostic test email helper
  */
 const testEmailConfig = async (targetEmail = 'wanjohijoy37@gmail.com') => {
-  const mailer = await getTransporter();
-  if (mailer.isMock) {
+  const hasResend = Boolean(process.env.RESEND_API_KEY);
+  const hasBrevo = Boolean(process.env.BREVO_API_KEY);
+  const hasSmtp = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+
+  if (!hasResend && !hasBrevo && !hasSmtp) {
     return {
       configured: false,
-      message: 'SMTP credentials (SMTP_USER or SMTP_PASS) are missing on the server environment.',
-      env: {
-        has_smtp_user: Boolean(process.env.SMTP_USER),
-        has_smtp_pass: Boolean(process.env.SMTP_PASS),
-        smtp_host: process.env.SMTP_HOST || 'none',
-      }
+      message: 'No email provider configured. Please add RESEND_API_KEY in Render.',
+      env: { has_resend: false, has_brevo: false, has_smtp: false }
     };
   }
 
   try {
-    const info = await mailer.sendMail({
-      from: getFromAddress(),
+    const res = await sendEmail({
       to: targetEmail,
       subject: '✦ MentorPlug Test Email Verification',
-      text: 'Congratulations! Your MentorPlug automated email notification system is fully operational.',
-      html: '<h2 style="color:#D4AF37;">MentorPlug Email Active</h2><p>Your automated notification delivery is fully operational!</p>',
+      text: 'Congratulations! Your MentorPlug email delivery via HTTPS REST API is fully operational.',
+      html: `
+        <div style="font-family: sans-serif; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #D4AF37;">MentorPlug Email Active</h2>
+          <p>Your automated notification delivery via HTTPS API is now active and bypassing cloud firewall restrictions!</p>
+        </div>
+      `,
     });
+
     return {
       configured: true,
       success: true,
-      messageId: info.messageId,
+      provider: res.provider,
+      messageId: res.messageId,
       recipient: targetEmail,
-      message: `Test email successfully dispatched to ${targetEmail}! Check your inbox.`
+      message: `Test email successfully dispatched to ${targetEmail} via ${res.provider}! Check your inbox.`
     };
   } catch (err) {
     return {
       configured: true,
       success: false,
       error: err.message,
-      code: err.code,
+      provider: hasResend ? 'resend' : (hasBrevo ? 'brevo' : 'smtp'),
     };
   }
 };
 
 module.exports = {
+  sendEmail,
   notifyWelcomeUser,
   notifySignInAlert,
   notifyIncomingMatchRequest,
