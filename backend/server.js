@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profiles');
 const recommendationRoutes = require('./routes/recommendations');
 const feedbackRoutes = require('./routes/feedback');
+const { testEmailConfig } = require('./services/emailService');
 
 const app = express();
 
@@ -29,6 +30,13 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
+// Diagnostic endpoint to test live email delivery and inspect errors
+app.get('/api/email/test', async (req, res) => {
+  const targetEmail = req.query.to || 'wanjohijoy37@gmail.com';
+  const result = await testEmailConfig(targetEmail);
+  res.status(result.success ? 200 : (result.configured ? 500 : 400)).json(result);
 });
 
 // Routes
