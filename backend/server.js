@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profiles');
 const recommendationRoutes = require('./routes/recommendations');
 const feedbackRoutes = require('./routes/feedback');
+const progressRoutes = require('./routes/progress');
 const { testEmailConfig } = require('./services/emailService');
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/profiles', profileRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/progress', progressRoutes);
 
 // Test database connection and ensure schema updates on startup
 pool.query('SELECT NOW()')
@@ -63,8 +65,40 @@ pool.query('SELECT NOW()')
         );
         CREATE INDEX IF NOT EXISTS idx_phone_verifications_lookup 
         ON phone_verifications ("accountID", phone, verified, "expiresAt");
+
+        CREATE TABLE IF NOT EXISTS mentorship_goals (
+          "goalID" SERIAL PRIMARY KEY,
+          "matchID" INT NOT NULL REFERENCES matches("matchID") ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          target_date DATE,
+          status VARCHAR(50) DEFAULT 'in_progress' CHECK (status IN ('pending', 'in_progress', 'pending_review', 'completed')),
+          "createdBy" INT NOT NULL REFERENCES account("accountID") ON DELETE CASCADE,
+          reviewed_at TIMESTAMP WITH TIME ZONE,
+          review_notes TEXT,
+          "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
+        ALTER TABLE mentorship_goals ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE mentorship_goals ADD COLUMN IF NOT EXISTS review_notes TEXT;
+        ALTER TABLE mentorship_goals DROP CONSTRAINT IF EXISTS mentorship_goals_status_check;
+        ALTER TABLE mentorship_goals ADD CONSTRAINT mentorship_goals_status_check 
+          CHECK (status IN ('pending', 'in_progress', 'pending_review', 'completed'));
+
+        CREATE TABLE IF NOT EXISTS mentorship_action_items (
+          "itemID" SERIAL PRIMARY KEY,
+          "goalID" INT NOT NULL REFERENCES mentorship_goals("goalID") ON DELETE CASCADE,
+          task_text VARCHAR(255) NOT NULL,
+          is_completed BOOLEAN DEFAULT FALSE,
+          completed_at TIMESTAMP WITH TIME ZONE,
+          "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_mentorship_goals_match ON mentorship_goals ("matchID");
+        CREATE INDEX IF NOT EXISTS idx_mentorship_action_items_goal ON mentorship_action_items ("goalID");
       `);
-      console.log('Phone verification schema verified successfully.');
+      console.log('Phone verification and mentorship progress schema verified successfully.');
     } catch (migErr) {
       console.warn('Startup migration notice:', migErr.message);
     }

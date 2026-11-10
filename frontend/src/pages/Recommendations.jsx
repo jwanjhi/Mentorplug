@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
+import MentorshipProgressModal from '../components/MentorshipProgressModal';
 import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
@@ -17,7 +18,7 @@ const cleanPhoneForWhatsApp = (rawPhone) => {
 };
 
 /* ── Single Mentor Card ───────────────────────────────────────────────────────── */
-const MentorCard = ({ match, onRequest, onRate, user }) => {
+const MentorCard = ({ match, onRequest, onRate, onProgress, user }) => {
   const score = Math.round((match.similarity_score ?? 0) * 100);
   const mentor = match.mentor;
 
@@ -109,6 +110,15 @@ const MentorCard = ({ match, onRequest, onRate, user }) => {
                 View LinkedIn ↗
               </a>
             )}
+
+            <Button
+              className="btn-gold w-100 mt-2 d-flex align-items-center justify-content-center gap-2"
+              size="sm"
+              onClick={() => onProgress(match)}
+              style={{ fontSize: '0.82rem', padding: '0.42rem 0.75rem', borderRadius: 'var(--mp-radius-pill)' }}
+            >
+              <span>🎯</span> Track Mentorship Progress
+            </Button>
 
             <Button
               variant="outline-secondary"
@@ -286,6 +296,13 @@ export default function Recommendations() {
   const [showAdviceModal, setShowAdviceModal] = useState(false);
   const [feedbackMatch, setFeedbackMatch] = useState(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [progressMatch, setProgressMatch] = useState(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+
+  const handleOpenProgress = (match) => {
+    setProgressMatch(match);
+    setShowProgressModal(true);
+  };
 
   const handleOpenFeedback = (match) => {
     setFeedbackMatch(match);
@@ -435,6 +452,7 @@ export default function Recommendations() {
                 match={match}
                 onRequest={openModal}
                 onRate={handleOpenFeedback}
+                onProgress={handleOpenProgress}
                 user={user}
               />
             </Col>
@@ -457,6 +475,14 @@ export default function Recommendations() {
         match={feedbackMatch}
         onHide={() => setShowFeedbackModal(false)}
         onFeedbackSubmitted={handleFeedbackSubmitted}
+      />
+
+      {/* Mentorship Progress & Milestone Tracker Modal */}
+      <MentorshipProgressModal
+        show={showProgressModal}
+        match={progressMatch}
+        onHide={() => setShowProgressModal(false)}
+        currentUser={user}
       />
 
       {/* Mentorship Insight Advice Modal (Comic Feature) */}

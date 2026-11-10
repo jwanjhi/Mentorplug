@@ -386,6 +386,120 @@ MentorPlug
 };
 
 /**
+ * 5. Milestone Submitted for Review (Sent to Mentor)
+ */
+const notifyMilestoneSubmittedForReview = async ({ mentorEmail, mentorName, menteeName, milestoneTitle }) => {
+  try {
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #0A1128; margin: 0; font-size: 26px;">Mentor<span style="color: #D4AF37;">plug</span></h1>
+        </div>
+
+        <h2 style="color: #D4AF37; margin: 0 0 12px 0; font-size: 20px;">📋 Milestone Review Required</h2>
+        <p style="color: #1e293b; font-size: 16px;">Hello <strong>${mentorName}</strong>,</p>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+          Your mentee <strong>${menteeName}</strong> has completed the required tasks for the milestone below and submitted it for your review and sign-off:
+        </p>
+
+        <div style="background-color: #f8fafc; border-left: 4px solid #D4AF37; padding: 16px 20px; border-radius: 6px; margin: 20px 0;">
+          <h4 style="margin: 0; color: #0A1128; font-size: 16px;">🎯 ${milestoneTitle}</h4>
+          <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">Status: Awaiting Mentor Approval</p>
+        </div>
+
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="https://mentorplug.me/mentor-dashboard" style="background-color: #D4AF37; color: #0A1128; padding: 12px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+            Review &amp; Approve Milestone →
+          </a>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0 16px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">MentorPlug • Quality Assurance in Mentorship</p>
+      </div>
+    `;
+
+    const textContent = `
+Hello ${mentorName},
+
+Your mentee ${menteeName} has submitted a milestone for your review: "${milestoneTitle}".
+
+Please review and sign off on your dashboard: https://mentorplug.me/mentor-dashboard
+
+MentorPlug
+    `.trim();
+
+    await sendEmail({
+      to: mentorEmail,
+      subject: `📋 Milestone Review Required: ${milestoneTitle} — MentorPlug`,
+      text: textContent,
+      html: htmlContent,
+    });
+  } catch (err) {
+    console.error('notifyMilestoneSubmittedForReview error:', err.message);
+  }
+};
+
+/**
+ * 6. Milestone Approved Notification (Sent to Mentee)
+ */
+const notifyMilestoneApproved = async ({ menteeEmail, menteeName, mentorName, milestoneTitle, reviewNotes }) => {
+  try {
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #0A1128; margin: 0; font-size: 26px;">Mentor<span style="color: #D4AF37;">plug</span></h1>
+        </div>
+
+        <h2 style="color: #22C55E; margin: 0 0 12px 0; font-size: 20px;">🎉 Milestone Approved!</h2>
+        <p style="color: #1e293b; font-size: 16px;">Hello <strong>${menteeName}</strong>,</p>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+          Congratulations! <strong>${mentorName}</strong> has reviewed and officially signed off on your milestone:
+        </p>
+
+        <div style="background-color: #f0fdf4; border: 1.5px solid #bbf7d0; padding: 16px 20px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="margin: 0; color: #15803d; font-size: 16px;">✓ ${milestoneTitle}</h4>
+          ${reviewNotes ? `
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #bbf7d0;">
+              <p style="margin: 0; font-size: 13px; color: #166534; font-style: italic;">
+                Mentor Note: "${reviewNotes}"
+              </p>
+            </div>
+          ` : ''}
+        </div>
+
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="https://mentorplug.me/recommendations" style="background-color: #D4AF37; color: #0A1128; padding: 12px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+            View Updated Progress →
+          </a>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0 16px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">MentorPlug • Celebrating Learning Milestones</p>
+      </div>
+    `;
+
+    const textContent = `
+Hello ${menteeName},
+
+Great work! ${mentorName} has reviewed and officially approved your milestone: "${milestoneTitle}"!
+${reviewNotes ? `Mentor Note: "${reviewNotes}"\n` : ''}
+Check your updated progress: https://mentorplug.me/recommendations
+
+MentorPlug
+    `.trim();
+
+    await sendEmail({
+      to: menteeEmail,
+      subject: `🎉 Milestone Approved: ${milestoneTitle} — MentorPlug`,
+      text: textContent,
+      html: htmlContent,
+    });
+  } catch (err) {
+    console.error('notifyMilestoneApproved error:', err.message);
+  }
+};
+
+/**
  * Diagnostic test email helper
  */
 const testEmailConfig = async (targetEmail = 'wanjohijoy37@gmail.com') => {
@@ -438,5 +552,7 @@ module.exports = {
   notifySignInAlert,
   notifyIncomingMatchRequest,
   notifyMenteeMatchAccepted,
+  notifyMilestoneSubmittedForReview,
+  notifyMilestoneApproved,
   testEmailConfig,
 };
