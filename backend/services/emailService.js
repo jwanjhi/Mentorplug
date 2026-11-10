@@ -500,6 +500,64 @@ MentorPlug
 };
 
 /**
+ * 7. Two-Factor Authentication (MFA) OTP Email
+ */
+const notifyMfaOtp = async ({ email, name, code }) => {
+  try {
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #0A1128; margin: 0; font-size: 26px;">Mentor<span style="color: #D4AF37;">plug</span></h1>
+          <span style="display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #D4AF37; font-weight: bold; margin-top: 4px;">Security Verification</span>
+        </div>
+
+        <h2 style="color: #0A1128; margin: 0 0 12px 0; font-size: 20px; text-align: center;">Two-Factor Authentication Code</h2>
+        <p style="color: #475569; font-size: 15px; text-align: center; margin-bottom: 24px;">
+          Hello <strong>${name || 'User'}</strong>, enter the code below to complete your sign-in to MentorPlug:
+        </p>
+
+        <div style="background-color: #0A1128; border-radius: 10px; padding: 22px; text-align: center; margin: 24px 0;">
+          <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: bold; letter-spacing: 10px; color: #D4AF37; display: block;">
+            ${code}
+          </span>
+          <span style="color: #94a3b8; font-size: 12px; display: block; margin-top: 8px;">
+            Expires in 10 minutes
+          </span>
+        </div>
+
+        <p style="color: #64748b; font-size: 13px; line-height: 1.6; text-align: center; margin-bottom: 24px;">
+          If you did not attempt to sign in to MentorPlug, please ignore this email or change your password immediately to secure your account.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 16px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">
+          MentorPlug Account Security • Strathmore University
+        </p>
+      </div>
+    `;
+
+    const textContent = `
+MentorPlug Security Verification
+
+Your 6-digit login verification code is: ${code}
+
+This code expires in 10 minutes. If you did not attempt to sign in, please secure your account immediately.
+
+MentorPlug
+    `.trim();
+
+    await sendEmail({
+      to: email,
+      subject: `✦ ${code} is your MentorPlug verification code`,
+      text: textContent,
+      html: htmlContent,
+    });
+  } catch (err) {
+    console.error('notifyMfaOtp error:', err.message);
+  }
+};
+
+/**
  * Diagnostic test email helper
  */
 const testEmailConfig = async (targetEmail = 'wanjohijoy37@gmail.com') => {
@@ -554,5 +612,6 @@ module.exports = {
   notifyMenteeMatchAccepted,
   notifyMilestoneSubmittedForReview,
   notifyMilestoneApproved,
+  notifyMfaOtp,
   testEmailConfig,
 };

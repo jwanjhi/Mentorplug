@@ -97,8 +97,22 @@ pool.query('SELECT NOW()')
 
         CREATE INDEX IF NOT EXISTS idx_mentorship_goals_match ON mentorship_goals ("matchID");
         CREATE INDEX IF NOT EXISTS idx_mentorship_action_items_goal ON mentorship_action_items ("goalID");
+
+        ALTER TABLE account ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT TRUE;
+
+        CREATE TABLE IF NOT EXISTS email_mfa_codes (
+          id SERIAL PRIMARY KEY,
+          "accountID" INT NOT NULL REFERENCES account("accountID") ON DELETE CASCADE,
+          code VARCHAR(10) NOT NULL,
+          "tempToken" VARCHAR(255) NOT NULL,
+          "expiresAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          consumed BOOLEAN DEFAULT FALSE,
+          "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_email_mfa_lookup 
+        ON email_mfa_codes ("tempToken", consumed, "expiresAt");
       `);
-      console.log('Phone verification and mentorship progress schema verified successfully.');
+      console.log('Phone verification, progress tracking, and MFA schema verified successfully.');
     } catch (migErr) {
       console.warn('Startup migration notice:', migErr.message);
     }

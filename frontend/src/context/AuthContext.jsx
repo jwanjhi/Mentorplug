@@ -39,9 +39,13 @@ export const AuthProvider = ({ children }) => {
     verifyUser();
   }, []);
 
-  // Login handler
+  // Login handler (supports 2FA challenge)
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
+    if (res.data?.mfaRequired) {
+      return res.data; // { mfaRequired: true, tempToken, maskedEmail, message }
+    }
+
     const { token: receivedToken, user: receivedUser } = res.data;
 
     localStorage.setItem('mp_token', receivedToken);
@@ -51,6 +55,26 @@ export const AuthProvider = ({ children }) => {
     setUser(receivedUser);
 
     return receivedUser;
+  };
+
+  // Verify Two-Factor Authentication OTP code
+  const verifyMfa = async (tempToken, code) => {
+    const res = await api.post('/auth/mfa/verify', { tempToken, code });
+    const { token: receivedToken, user: receivedUser } = res.data;
+
+    localStorage.setItem('mp_token', receivedToken);
+    localStorage.setItem('mp_user', JSON.stringify(receivedUser));
+
+    setToken(receivedToken);
+    setUser(receivedUser);
+
+    return receivedUser;
+  };
+
+  // Resend Two-Factor Authentication OTP code
+  const resendMfa = async (tempToken) => {
+    const res = await api.post('/auth/mfa/resend', { tempToken });
+    return res.data;
   };
 
   // Register handler
@@ -113,6 +137,8 @@ export const AuthProvider = ({ children }) => {
         loading,
         isAuthenticated: !!token && !!user,
         login,
+        verifyMfa,
+        resendMfa,
         register,
         loginWithGoogle,
         logout,

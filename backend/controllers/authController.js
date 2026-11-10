@@ -1,7 +1,15 @@
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
-const { notifyWelcomeUser, notifySignInAlert } = require('../services/emailService');
+const { notifyWelcomeUser, notifySignInAlert, notifyMfaOtp } = require('../services/emailService');
+
+const maskEmail = (email) => {
+  if (!email || !email.includes('@')) return email;
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) return `${local[0]}***@${domain}`;
+  return `${local[0]}***${local[local.length - 1]}@${domain}`;
+};
 
 // Register a new mentor or mentee account
 const register = async (req, res) => {
@@ -64,7 +72,7 @@ const register = async (req, res) => {
   }
 };
 
-// Login user
+// Login user with Two-Factor Authentication (Email OTP)
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -74,7 +82,7 @@ const login = async (req, res) => {
     }
 
     // Find account by email in Account table
-    const accountQuery = 'SELECT "accountID", name, email, "passwordHash", role FROM account WHERE email = $1';
+    const accountQuery = 'SELECT "accountID", name, email, "passwordHash", role, COALESCE(mfa_enabled, TRUE) AS mfa_enabled FROM account WHERE email = $1';
     const accountResult = await pool.query(accountQuery, [email]);
 
     if (accountResult.rows.length === 0) {
@@ -89,7 +97,40 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Signed JWT containing accountID and role
+    // Check if MFA is enabled (enforced by default for all password logins)
+    if (account.mfa_enabled !== false) {
+      const code = crypto.randomInt(100000, 999999).toString();
+      const tempToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      // Invalidate any previous unconsumed temp tokens for this user
+      await pool.query(
+        'UPDATE email_mfa_codes SET consumed = TRUE WHERE "accountID" = $1 AND consumed = FALSE',
+        [account.accountID]
+      );
+
+      // Insert new MFA record
+      await pool.query(
+        'INSERT INTO email_mfa_codes ("accountID", code, "tempToken", "expiresAt") VALUES ($1, $2, $3, $4)',
+        [account.accountID, code, tempToken, expiresAt]
+      );
+
+      // Send OTP via verified Resend domain
+      notifyMfaOtp({
+        email: account.email,
+        name: account.name,
+        code,
+      }).catch((e) => console.warn('MFA OTP dispatch error:', e.message));
+
+      return res.status(200).json({
+        mfaRequired: true,
+        tempToken,
+        maskedEmail: maskEmail(account.email),
+        message: 'Two-factor verification code sent to your email.',
+      });
+    }
+
+    // If MFA explicitly disabled: issue JWT directly
     const token = jwt.sign(
       { accountID: account.accountID, role: account.role },
       process.env.JWT_SECRET,
@@ -117,6 +158,151 @@ const login = async (req, res) => {
   } catch (error) {
     console.error('Error in login controller:', error);
     return res.status(500).json({ message: 'Server error during login' });
+  }
+};
+
+// Verify 2FA OTP code
+const verifyMfa = async (req, res) => {
+  try {
+    const { tempToken, code } = req.body;
+
+    if (!tempToken || !code) {
+      return res.status(400).json({ message: 'Verification token and 6-digit code are required' });
+    }
+
+    const cleanCode = String(code).trim();
+    if (cleanCode.length !== 6) {
+      return res.status(400).json({ message: 'Code must be exactly 6 digits' });
+    }
+
+    const mfaRes = await pool.query(
+      `SELECT m.id, m."accountID", m.code, m."expiresAt", m.consumed,
+              a.name, a.email, a.role
+       FROM email_mfa_codes m
+       JOIN account a ON a."accountID" = m."accountID"
+       WHERE m."tempToken" = $1
+       ORDER BY m."createdAt" DESC
+       LIMIT 1`,
+      [tempToken.trim()]
+    );
+
+    if (mfaRes.rows.length === 0 || mfaRes.rows[0].consumed) {
+      return res.status(400).json({ message: 'Invalid or expired verification session. Please sign in again.' });
+    }
+
+    const record = mfaRes.rows[0];
+
+    if (new Date() > new Date(record.expiresAt)) {
+      return res.status(400).json({ message: 'Verification code has expired. Please click Resend Code.' });
+    }
+
+    if (record.code.trim() !== cleanCode) {
+      return res.status(400).json({ message: 'Incorrect 6-digit code. Please check your email and try again.' });
+    }
+
+    // Mark as consumed
+    await pool.query('UPDATE email_mfa_codes SET consumed = TRUE WHERE id = $1', [record.id]);
+
+    // Issue authentic 24h JWT
+    const token = jwt.sign(
+      { accountID: record.accountID, role: record.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Send sign-in security alert
+    notifySignInAlert({
+      email: record.email,
+      name: record.name,
+      ip: req.ip || req.headers['x-forwarded-for'],
+      userAgent: req.headers['user-agent'],
+    }).catch((e) => console.warn('Sign-in alert error:', e.message));
+
+    return res.status(200).json({
+      message: 'Two-factor authentication successful',
+      token,
+      user: {
+        accountID: record.accountID,
+        name: record.name,
+        email: record.email,
+        role: record.role,
+      },
+    });
+  } catch (error) {
+    console.error('Error in verifyMfa controller:', error);
+    return res.status(500).json({ message: 'Server error during MFA verification' });
+  }
+};
+
+// Resend fresh MFA OTP code
+const resendMfa = async (req, res) => {
+  try {
+    const { tempToken } = req.body;
+
+    if (!tempToken) {
+      return res.status(400).json({ message: 'Verification session token is required' });
+    }
+
+    const mfaRes = await pool.query(
+      `SELECT m.id, m."accountID", m."createdAt", a.name, a.email
+       FROM email_mfa_codes m
+       JOIN account a ON a."accountID" = m."accountID"
+       WHERE m."tempToken" = $1 AND m.consumed = FALSE
+       ORDER BY m."createdAt" DESC
+       LIMIT 1`,
+      [tempToken.trim()]
+    );
+
+    if (mfaRes.rows.length === 0) {
+      return res.status(400).json({ message: 'Session expired. Please sign in again.' });
+    }
+
+    const record = mfaRes.rows[0];
+
+    // Rate-limiting: prevent spamming resend within 45 seconds
+    const secondsSinceLast = (Date.now() - new Date(record.createdAt).getTime()) / 1000;
+    if (secondsSinceLast < 45) {
+      const waitSec = Math.ceil(45 - secondsSinceLast);
+      return res.status(429).json({ message: `Please wait ${waitSec}s before requesting a new code.` });
+    }
+
+    const newCode = crypto.randomInt(100000, 999999).toString();
+    const newExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    await pool.query(
+      'UPDATE email_mfa_codes SET code = $1, "expiresAt" = $2, "createdAt" = CURRENT_TIMESTAMP WHERE id = $3',
+      [newCode, newExpires, record.id]
+    );
+
+    notifyMfaOtp({
+      email: record.email,
+      name: record.name,
+      code: newCode,
+    }).catch((e) => console.warn('Resend MFA OTP error:', e.message));
+
+    return res.status(200).json({ message: 'A fresh 6-digit verification code has been sent to your email.' });
+  } catch (error) {
+    console.error('Error in resendMfa controller:', error);
+    return res.status(500).json({ message: 'Server error resending verification code' });
+  }
+};
+
+// Toggle MFA for the logged-in user
+const toggleMfa = async (req, res) => {
+  try {
+    const accountID = req.user.accountID;
+    const { enabled } = req.body;
+
+    const isEnabled = Boolean(enabled);
+    await pool.query('UPDATE account SET mfa_enabled = $1 WHERE "accountID" = $2', [isEnabled, accountID]);
+
+    return res.status(200).json({
+      message: `Two-factor authentication is now ${isEnabled ? 'enabled' : 'disabled'}.`,
+      mfa_enabled: isEnabled,
+    });
+  } catch (error) {
+    console.error('Error in toggleMfa controller:', error);
+    return res.status(500).json({ message: 'Server error toggling MFA status' });
   }
 };
 
@@ -353,6 +539,9 @@ const googleAuth = async (req, res) => {
 module.exports = {
   register,
   login,
+  verifyMfa,
+  resendMfa,
+  toggleMfa,
   getMe,
   googleAuth
 };
