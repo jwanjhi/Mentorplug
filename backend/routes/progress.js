@@ -5,6 +5,7 @@ const {
   getMatchProgress,
   createGoal,
   updateGoal,
+  reviewGoal,
   deleteGoal,
   addActionItem,
   toggleActionItem,
@@ -22,6 +23,9 @@ router.post('/:matchId', createGoal);
 
 // PATCH  /api/progress/goals/:goalId     — update milestone details or status
 router.patch('/goals/:goalId', updateGoal);
+
+// POST   /api/progress/goals/:goalId/review — mentor review decision (approve or request_changes)
+router.post('/goals/:goalId/review', reviewGoal);
 
 // DELETE /api/progress/goals/:goalId     — delete a milestone
 router.delete('/goals/:goalId', deleteGoal);

@@ -72,11 +72,19 @@ pool.query('SELECT NOW()')
           title VARCHAR(255) NOT NULL,
           description TEXT,
           target_date DATE,
-          status VARCHAR(50) DEFAULT 'in_progress' CHECK (status IN ('pending', 'in_progress', 'completed')),
+          status VARCHAR(50) DEFAULT 'in_progress' CHECK (status IN ('pending', 'in_progress', 'pending_review', 'completed')),
           "createdBy" INT NOT NULL REFERENCES account("accountID") ON DELETE CASCADE,
+          reviewed_at TIMESTAMP WITH TIME ZONE,
+          review_notes TEXT,
           "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
+
+        ALTER TABLE mentorship_goals ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE mentorship_goals ADD COLUMN IF NOT EXISTS review_notes TEXT;
+        ALTER TABLE mentorship_goals DROP CONSTRAINT IF EXISTS mentorship_goals_status_check;
+        ALTER TABLE mentorship_goals ADD CONSTRAINT mentorship_goals_status_check 
+          CHECK (status IN ('pending', 'in_progress', 'pending_review', 'completed'));
 
         CREATE TABLE IF NOT EXISTS mentorship_action_items (
           "itemID" SERIAL PRIMARY KEY,
