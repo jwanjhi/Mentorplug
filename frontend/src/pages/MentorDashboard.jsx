@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
+import MentorshipProgressModal from '../components/MentorshipProgressModal';
 import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
@@ -42,7 +43,7 @@ const StatusBadge = ({ status }) => {
 };
 
 /* ── Request Row ─────────────────────────────────────────────────────────── */
-const RequestRow = ({ match, onAccept, onDecline, onRate, user }) => {
+const RequestRow = ({ match, onAccept, onDecline, onRate, onProgress, user }) => {
   const mentee = match.mentee;
   const score = Math.round((match.similarity_score ?? 0) * 100);
 
@@ -113,6 +114,14 @@ const RequestRow = ({ match, onAccept, onDecline, onRate, user }) => {
                 <span>✉️</span> Email
               </a>
               <Button
+                className="btn-gold btn-sm d-flex align-items-center gap-1"
+                size="sm"
+                onClick={() => onProgress(match)}
+                style={{ borderRadius: 'var(--mp-radius-pill)', padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+              >
+                <span>🎯</span> Milestones &amp; Progress
+              </Button>
+              <Button
                 variant="outline-secondary"
                 className="btn-outline-gold btn-sm d-flex align-items-center gap-1"
                 size="sm"
@@ -179,6 +188,13 @@ export default function MentorDashboard() {
   const [showAdviceModal, setShowAdviceModal] = useState(false);
   const [feedbackMatch, setFeedbackMatch] = useState(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [progressMatch, setProgressMatch] = useState(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+
+  const handleOpenProgress = (match) => {
+    setProgressMatch(match);
+    setShowProgressModal(true);
+  };
 
   const handleOpenFeedback = (match) => {
     setFeedbackMatch(match);
@@ -367,6 +383,7 @@ export default function MentorDashboard() {
           onAccept={handleAccept}
           onDecline={handleDecline}
           onRate={handleOpenFeedback}
+          onProgress={handleOpenProgress}
           user={user}
         />
       ))}
@@ -377,6 +394,14 @@ export default function MentorDashboard() {
         match={feedbackMatch}
         onHide={() => setShowFeedbackModal(false)}
         onFeedbackSubmitted={handleFeedbackSubmitted}
+      />
+
+      {/* Mentorship Progress & Milestone Tracker Modal */}
+      <MentorshipProgressModal
+        show={showProgressModal}
+        match={progressMatch}
+        onHide={() => setShowProgressModal(false)}
+        currentUser={user}
       />
 
       {/* Mentorship Insight Advice Modal (Comic feature) */}
