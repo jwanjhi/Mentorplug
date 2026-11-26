@@ -121,6 +121,23 @@ export const AuthProvider = ({ children }) => {
     return { user: receivedUser, isNewUser: !!isNewUser };
   };
 
+  // Link Google to an existing email/password account (after a Google sign-in conflict).
+  // Returns { mfaRequired, tempToken, maskedEmail } when an email code is needed,
+  // otherwise signs in and returns { user, googleLinked, message }.
+  const linkGoogle = async (linkToken, password) => {
+    const res = await api.post('/auth/google/link', { linkToken, password });
+    if (res.data?.mfaRequired) {
+      return res.data;
+    }
+
+    const { token: receivedToken, user: receivedUser, googleLinked, message } = res.data;
+    localStorage.setItem('mp_token', receivedToken);
+    localStorage.setItem('mp_user', JSON.stringify(receivedUser));
+    setToken(receivedToken);
+    setUser(receivedUser);
+    return { user: receivedUser, googleLinked, message };
+  };
+
   // Logout handler
   const logout = () => {
     localStorage.removeItem('mp_token');
@@ -141,6 +158,7 @@ export const AuthProvider = ({ children }) => {
         resendMfa,
         register,
         loginWithGoogle,
+        linkGoogle,
         logout,
         setUser,
       }}

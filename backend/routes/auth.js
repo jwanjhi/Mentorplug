@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, verifyMfa, resendMfa, toggleMfa, getMe, googleAuth } = require('../controllers/authController');
+const { register, login, linkGoogle, verifyMfa, resendMfa, toggleMfa, getMe, googleAuth } = require('../controllers/authController');
 const { sendOtp, verifyOtp } = require('../controllers/phoneVerificationController');
 const authMiddleware = require('../middleware/auth');
 
@@ -21,6 +21,9 @@ router.patch('/mfa/toggle', authMiddleware, toggleMfa);
 
 // POST /google -> Google OAuth token verification and login/register
 router.post('/google', googleAuth);
+
+// POST /google/link -> link Google to an existing password account (link token + password, then email OTP)
+router.post('/google/link', linkGoogle);
 
 // GET /me -> protected by auth middleware, calls getMe controller
 router.get('/me', authMiddleware, getMe);

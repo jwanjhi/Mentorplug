@@ -125,8 +125,11 @@ pool.query('SELECT NOW()')
           consumed BOOLEAN DEFAULT FALSE,
           "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
-        CREATE INDEX IF NOT EXISTS idx_email_mfa_lookup 
+        CREATE INDEX IF NOT EXISTS idx_email_mfa_lookup
         ON email_mfa_codes ("tempToken", consumed, "expiresAt");
+
+        -- Google ID to link once this OTP is verified (account linking flow)
+        ALTER TABLE email_mfa_codes ADD COLUMN IF NOT EXISTS pending_google_id VARCHAR(255);
       `);
       console.log('Phone verification, progress tracking, and MFA schema verified successfully.');
     } catch (migErr) {

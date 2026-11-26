@@ -12,9 +12,9 @@ import { useTheme } from '../context/ThemeContext';
  * - Prompts new users to select Mentor or Mentee role in a modal before finalizing registration.
  * - Displays actionable error if account already exists with password.
  */
-export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthSuccess, onError }) {
+export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthSuccess, onError, onMfaRequired }) {
   const containerRef = useRef(null);
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, linkGoogle } = useAuth();
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,6 +28,12 @@ export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthS
   const [pendingUserGoogleInfo, setPendingUserGoogleInfo] = useState(null);
   const [selectedRole, setSelectedRole] = useState('mentee');
   const [isSubmittingRole, setIsSubmittingRole] = useState(false);
+
+  // Link-to-existing-account state (Google email matches an email/password account)
+  const [linkState, setLinkState] = useState(null); // { linkToken, maskedEmail }
+  const [linkPassword, setLinkPassword] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState(null);
 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -74,13 +80,63 @@ export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthS
         handleRedirect(result.user, result.isNewUser);
       }
     } catch (err) {
-      console.error('Google Sign-in error:', err);
       const code = err.response?.data?.code;
+
+      // An email/password account already exists: offer to link it by confirming the password
+      if (code === 'ACCOUNT_EXISTS_WITH_PASSWORD' && err.response?.data?.linkToken) {
+        setLinkState({
+          linkToken: err.response.data.linkToken,
+          maskedEmail: err.response.data.maskedEmail,
+        });
+        setLinkPassword('');
+        setLinkError(null);
+        return;
+      }
+
+      console.error('Google Sign-in error:', err);
       const msg = err.response?.data?.message || 'Google authentication failed. Please try again.';
       setErrorMessage(msg);
       if (onError) onError(msg, code);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Confirm password to link Google to the existing account
+  const handleConfirmLink = async (e) => {
+    e.preventDefault();
+    if (!linkState?.linkToken || !linkPassword) return;
+
+    setIsLinking(true);
+    setLinkError(null);
+    try {
+      const result = await linkGoogle(linkState.linkToken, linkPassword);
+      setLinkState(null);
+      setLinkPassword('');
+
+      if (result?.mfaRequired) {
+        const mfa = {
+          required: true,
+          tempToken: result.tempToken,
+          maskedEmail: result.maskedEmail,
+          linkingGoogle: true,
+        };
+        if (onMfaRequired) {
+          onMfaRequired(mfa);
+        } else {
+          // e.g. from the Register page: finish on the login page's code screen
+          navigate('/login', { state: { mfa, from: location.state?.from } });
+        }
+        return;
+      }
+
+      if (result?.user) {
+        handleRedirect(result.user, false);
+      }
+    } catch (err) {
+      setLinkError(err.response?.data?.message || 'Could not link your Google account. Please try again.');
+    } finally {
+      setIsLinking(false);
     }
   };
 
@@ -247,6 +303,76 @@ export default function GoogleAuthButton({ buttonText = 'continue_with', onAuthS
             </Button>
           </div>
         </Modal.Body>
+      </Modal>
+
+      {/* Link Google to an existing email/password account */}
+      <Modal
+        show={Boolean(linkState)}
+        onHide={() => !isLinking && setLinkState(null)}
+        centered
+        backdrop="static"
+        contentClassName="card-mentor-custom border-0 p-3"
+      >
+        <Modal.Header closeButton={!isLinking} className="border-0 pb-0">
+          <Modal.Title className="fw-bold text-themed-primary h5">Link your Google account</Modal.Title>
+        </Modal.Header>
+        <form onSubmit={handleConfirmLink}>
+          <Modal.Body className="pt-2">
+            <p className="text-themed-secondary small mb-3">
+              You already have a MentorPlug account for <strong className="text-gold">{linkState?.maskedEmail}</strong>.
+              Enter its password to link Google, so you can use either way to sign in. If two-factor sign-in is on,
+              we'll also email you a code.
+            </p>
+
+            {linkError && (
+              <Alert variant="danger" className="py-2 px-3 small border-0 mb-3" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#EF4444' }}>
+                {linkError}
+              </Alert>
+            )}
+
+            <label htmlFor="googleLinkPassword" className="form-label small text-themed-secondary mb-1">
+              MentorPlug password
+            </label>
+            <input
+              id="googleLinkPassword"
+              type="password"
+              className="form-control mb-4"
+              autoComplete="current-password"
+              autoFocus
+              value={linkPassword}
+              onChange={(e) => setLinkPassword(e.target.value)}
+              disabled={isLinking}
+              style={{
+                background: 'var(--mp-bg-input)',
+                color: 'var(--mp-text-primary)',
+                borderColor: 'var(--mp-border-subtle)',
+                borderRadius: 'var(--mp-radius-input)',
+              }}
+            />
+
+            <div className="d-flex justify-content-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isLinking}
+                onClick={() => setLinkState(null)}
+                style={{ background: 'transparent', border: '1px solid var(--mp-border-subtle)', color: 'var(--mp-text-secondary)', borderRadius: 'var(--mp-radius-pill)' }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="btn-gold" size="sm" disabled={isLinking || !linkPassword}>
+                {isLinking ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Checking...
+                  </>
+                ) : (
+                  'Link and sign in'
+                )}
+              </Button>
+            </div>
+          </Modal.Body>
+        </form>
       </Modal>
     </div>
   );

@@ -11,6 +11,123 @@ const maskEmail = (email) => {
   return `${local[0]}***${local[local.length - 1]}@${domain}`;
 };
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Google account linking
+   When someone signs in with Google but an email/password account already
+   exists for that email, we never link automatically (sign-up does not verify
+   email ownership, so that would allow pre-account takeover). Instead we hand
+   back a short-lived link token proving they control the Google account; they
+   then prove they own the password account (password + email OTP) and only
+   then is the Google ID attached.
+
+   The link token is signed with a DIFFERENT key from session JWTs, so it can
+   never be used as a login token by authMiddleware.
+   ───────────────────────────────────────────────────────────────────────────── */
+const GOOGLE_LINK_PURPOSE = 'google_link';
+const googleLinkSecret = () => `${process.env.JWT_SECRET}:google-account-link`;
+
+const signGoogleLinkToken = ({ googleId, email }) =>
+  jwt.sign({ purpose: GOOGLE_LINK_PURPOSE, googleId, email }, googleLinkSecret(), { expiresIn: '10m' });
+
+const verifyGoogleLinkToken = (linkToken) => {
+  const decoded = jwt.verify(linkToken, googleLinkSecret());
+  if (decoded.purpose !== GOOGLE_LINK_PURPOSE || !decoded.googleId || !decoded.email) {
+    throw new Error('Invalid link token');
+  }
+  return decoded;
+};
+
+/* Attach a Google ID to an account. Returns true if linked (or already linked to this Google ID). */
+const linkGoogleIdToAccount = async (accountID, googleId) => {
+  try {
+    const res = await pool.query(
+      `UPDATE account SET "googleId" = $1
+       WHERE "accountID" = $2 AND ("googleId" IS NULL OR "googleId" = $1)`,
+      [googleId, accountID]
+    );
+    return res.rowCount > 0;
+  } catch (err) {
+    if (err.code === '23505') return false; // this Google account is already linked to a different MentorPlug account
+    throw err;
+  }
+};
+
+const LINK_FAILED_MESSAGE =
+  'Signed in, but this Google account could not be linked. It may already be linked to a different MentorPlug account.';
+
+/* Issue a 24h session JWT and send the standard response */
+const sendSession = (req, res, account, { message, googleLinked } = {}) => {
+  const token = jwt.sign(
+    { accountID: account.accountID, role: account.role },
+    process.env.JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+
+  notifySignInAlert({
+    email: account.email,
+    name: account.name,
+    ip: req.ip || req.headers['x-forwarded-for'],
+    userAgent: req.headers['user-agent'],
+  }).catch((e) => console.warn('Sign-in alert error:', e.message));
+
+  return res.status(200).json({
+    message: message || 'Login successful',
+    token,
+    user: {
+      accountID: account.accountID,
+      name: account.name,
+      email: account.email,
+      role: account.role,
+    },
+    ...(googleLinked !== undefined ? { googleLinked } : {}),
+  });
+};
+
+/* After a correct password: send an email OTP (if MFA is on) or sign in directly.
+   pendingGoogleId is linked only once the OTP is verified (or immediately if MFA is off). */
+const continuePasswordSignIn = async (req, res, account, { pendingGoogleId = null } = {}) => {
+  if (account.mfa_enabled !== false) {
+    const code = crypto.randomInt(100000, 999999).toString();
+    const tempToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Invalidate any previous unconsumed temp tokens for this user
+    await pool.query(
+      'UPDATE email_mfa_codes SET consumed = TRUE WHERE "accountID" = $1 AND consumed = FALSE',
+      [account.accountID]
+    );
+
+    await pool.query(
+      `INSERT INTO email_mfa_codes ("accountID", code, "tempToken", "expiresAt", pending_google_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [account.accountID, code, tempToken, expiresAt, pendingGoogleId]
+    );
+
+    notifyMfaOtp({
+      email: account.email,
+      name: account.name,
+      code,
+    }).catch((e) => console.warn('MFA OTP dispatch error:', e.message));
+
+    return res.status(200).json({
+      mfaRequired: true,
+      tempToken,
+      maskedEmail: maskEmail(account.email),
+      message: 'Two-factor verification code sent to your email.',
+    });
+  }
+
+  // MFA explicitly disabled: password alone proves ownership
+  if (pendingGoogleId) {
+    const linked = await linkGoogleIdToAccount(account.accountID, pendingGoogleId);
+    return sendSession(req, res, account, {
+      message: linked ? 'Google account linked. You can now sign in with Google.' : LINK_FAILED_MESSAGE,
+      googleLinked: linked,
+    });
+  }
+  return sendSession(req, res, account);
+};
+
 // Register a new mentor or mentee account
 const register = async (req, res) => {
   try {
@@ -91,73 +208,66 @@ const login = async (req, res) => {
 
     const account = accountResult.rows[0];
 
+    // Google-only accounts have no password (previously crashed bcrypt with a 500)
+    if (!account.passwordHash) {
+      return res.status(401).json({
+        code: 'GOOGLE_ACCOUNT',
+        message: 'This account uses Google sign-in. Please continue with Google.',
+      });
+    }
+
     // Compare provided password with stored hash using bcrypt
     const isMatch = await bcrypt.compare(password, account.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Check if MFA is enabled (enforced by default for all password logins)
-    if (account.mfa_enabled !== false) {
-      const code = crypto.randomInt(100000, 999999).toString();
-      const tempToken = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-      // Invalidate any previous unconsumed temp tokens for this user
-      await pool.query(
-        'UPDATE email_mfa_codes SET consumed = TRUE WHERE "accountID" = $1 AND consumed = FALSE',
-        [account.accountID]
-      );
-
-      // Insert new MFA record
-      await pool.query(
-        'INSERT INTO email_mfa_codes ("accountID", code, "tempToken", "expiresAt") VALUES ($1, $2, $3, $4)',
-        [account.accountID, code, tempToken, expiresAt]
-      );
-
-      // Send OTP via verified Resend domain
-      notifyMfaOtp({
-        email: account.email,
-        name: account.name,
-        code,
-      }).catch((e) => console.warn('MFA OTP dispatch error:', e.message));
-
-      return res.status(200).json({
-        mfaRequired: true,
-        tempToken,
-        maskedEmail: maskEmail(account.email),
-        message: 'Two-factor verification code sent to your email.',
-      });
-    }
-
-    // If MFA explicitly disabled: issue JWT directly
-    const token = jwt.sign(
-      { accountID: account.accountID, role: account.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    // Send security sign-in alert asynchronously (non-blocking)
-    notifySignInAlert({
-      email: account.email,
-      name: account.name,
-      ip: req.ip || req.headers['x-forwarded-for'],
-      userAgent: req.headers['user-agent'],
-    }).catch((e) => console.warn('Sign-in alert error:', e.message));
-
-    return res.status(200).json({
-      message: 'Login successful',
-      token,
-      user: {
-        accountID: account.accountID,
-        name: account.name,
-        email: account.email,
-        role: account.role
-      }
-    });
+    // Email OTP (enforced by default for all password logins), or direct sign-in if MFA is off
+    return continuePasswordSignIn(req, res, account);
   } catch (error) {
     console.error('Error in login controller:', error);
     return res.status(500).json({ message: 'Server error during login' });
+  }
+};
+
+// Link Google to an existing email/password account.
+// Requires the link token from a Google sign-in conflict plus the account password,
+// then the usual email OTP. The Google ID is attached only after the OTP is verified.
+const linkGoogle = async (req, res) => {
+  try {
+    const { linkToken, password } = req.body || {};
+
+    if (!linkToken || !password) {
+      return res.status(400).json({ message: 'Link token and password are required' });
+    }
+
+    let link;
+    try {
+      link = verifyGoogleLinkToken(linkToken);
+    } catch {
+      return res.status(401).json({ message: 'This Google sign-in has expired. Please click "Continue with Google" again.' });
+    }
+
+    const accountResult = await pool.query(
+      `SELECT "accountID", name, email, "passwordHash", role, "googleId",
+              COALESCE(mfa_enabled, TRUE) AS mfa_enabled
+       FROM account WHERE email = $1`,
+      [link.email]
+    );
+    const account = accountResult.rows[0];
+
+    if (!account || !account.passwordHash || !(await bcrypt.compare(password, account.passwordHash))) {
+      return res.status(401).json({ message: 'Incorrect password' });
+    }
+
+    if (account.googleId && account.googleId !== link.googleId) {
+      return res.status(409).json({ message: 'This MentorPlug account is already linked to a different Google account.' });
+    }
+
+    return continuePasswordSignIn(req, res, account, { pendingGoogleId: link.googleId });
+  } catch (error) {
+    console.error('Error in linkGoogle controller:', error);
+    return res.status(500).json({ message: 'Server error linking Google account' });
   }
 };
 
@@ -176,7 +286,7 @@ const verifyMfa = async (req, res) => {
     }
 
     const mfaRes = await pool.query(
-      `SELECT m.id, m."accountID", m.code, m."expiresAt", m.consumed,
+      `SELECT m.id, m."accountID", m.code, m."expiresAt", m.consumed, m.pending_google_id,
               a.name, a.email, a.role
        FROM email_mfa_codes m
        JOIN account a ON a."accountID" = m."accountID"
@@ -200,34 +310,25 @@ const verifyMfa = async (req, res) => {
       return res.status(400).json({ message: 'Incorrect 6-digit code. Please check your email and try again.' });
     }
 
-    // Mark as consumed
-    await pool.query('UPDATE email_mfa_codes SET consumed = TRUE WHERE id = $1', [record.id]);
-
-    // Issue authentic 24h JWT
-    const token = jwt.sign(
-      { accountID: record.accountID, role: record.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+    // Mark as consumed atomically so the same code cannot be used twice in parallel
+    const consumeRes = await pool.query(
+      'UPDATE email_mfa_codes SET consumed = TRUE WHERE id = $1 AND consumed = FALSE',
+      [record.id]
     );
+    if (consumeRes.rowCount === 0) {
+      return res.status(400).json({ message: 'Invalid or expired verification session. Please sign in again.' });
+    }
 
-    // Send sign-in security alert
-    notifySignInAlert({
-      email: record.email,
-      name: record.name,
-      ip: req.ip || req.headers['x-forwarded-for'],
-      userAgent: req.headers['user-agent'],
-    }).catch((e) => console.warn('Sign-in alert error:', e.message));
+    // Finish a pending Google link (password + OTP now both proven)
+    if (record.pending_google_id) {
+      const linked = await linkGoogleIdToAccount(record.accountID, record.pending_google_id);
+      return sendSession(req, res, record, {
+        message: linked ? 'Google account linked. You can now sign in with Google.' : LINK_FAILED_MESSAGE,
+        googleLinked: linked,
+      });
+    }
 
-    return res.status(200).json({
-      message: 'Two-factor authentication successful',
-      token,
-      user: {
-        accountID: record.accountID,
-        name: record.name,
-        email: record.email,
-        role: record.role,
-      },
-    });
+    return sendSession(req, res, record, { message: 'Two-factor authentication successful' });
   } catch (error) {
     console.error('Error in verifyMfa controller:', error);
     return res.status(500).json({ message: 'Server error during MFA verification' });
@@ -414,11 +515,14 @@ const googleAuth = async (req, res) => {
     if (emailAccountResult.rows.length > 0) {
       const existingEmailUser = emailAccountResult.rows[0];
 
-      // Safeguard 2: Do not automatically link if account was created with a password
+      // Safeguard 2: Do not automatically link if account was created with a password.
+      // Hand back a short-lived link token; the user can link by proving the password + email OTP.
       if (existingEmailUser.passwordHash) {
         return res.status(409).json({
           code: 'ACCOUNT_EXISTS_WITH_PASSWORD',
-          message: 'An account with this email already exists using email and password. Please sign in with your password to access your account.',
+          message: 'An account with this email already exists. Enter your MentorPlug password to link Google to it.',
+          linkToken: signGoogleLinkToken({ googleId, email }),
+          maskedEmail: maskEmail(email),
         });
       }
 
@@ -438,8 +542,8 @@ const googleAuth = async (req, res) => {
 
       // Send security sign-in alert asynchronously
       notifySignInAlert({
-        email: existingUser.email,
-        name: existingUser.name,
+        email: existingEmailUser.email,
+        name: existingEmailUser.name,
         ip: req.ip || req.headers['x-forwarded-for'],
         userAgent: req.headers['user-agent'],
       }).catch((e) => console.warn('Google sign-in alert error:', e.message));
@@ -539,6 +643,7 @@ const googleAuth = async (req, res) => {
 module.exports = {
   register,
   login,
+  linkGoogle,
   verifyMfa,
   resendMfa,
   toggleMfa,

@@ -16,21 +16,32 @@ const loginValidationSchema = Yup.object({
 });
 
 const Login = () => {
+  const { login, verifyMfa, resendMfa } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
   // Two-Factor Authentication state
-  const [mfaState, setMfaState] = useState(null); // { required: true, tempToken: '', maskedEmail: '' }
+  // { required: true, tempToken: '', maskedEmail: '', linkingGoogle?: true }
+  // May arrive via navigation state when Google linking started on the Register page.
+  const [mfaState, setMfaState] = useState(() => location.state?.mfa || null);
   const [otpCode, setOtpCode] = useState('');
   const [verifyingMfa, setVerifyingMfa] = useState(false);
   const [resending, setResending] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(() => (location.state?.mfa ? 60 : 0));
   const [resendNotice, setResendNotice] = useState(null);
 
-  const { login, verifyMfa, resendMfa } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  // Google linking on this page asked for an email code: show the code screen
+  const handleGoogleLinkMfa = (mfa) => {
+    setMfaState(mfa);
+    setResendCooldown(60);
+    setOtpCode('');
+    setError(null);
+    setResendNotice(null);
+  };
 
   // Cooldown countdown timer for resending OTP
   useEffect(() => {
@@ -185,6 +196,7 @@ const Login = () => {
                       <h5 className="fw-bold text-themed-primary mb-1">Enter Security Code</h5>
                       <p className="text-themed-secondary small mb-0">
                         We sent a 6-digit code to <strong className="text-gold">{mfaState.maskedEmail}</strong>.
+                        {mfaState.linkingGoogle && ' Enter it to finish linking your Google account.'}
                       </p>
                     </div>
 
@@ -268,7 +280,7 @@ const Login = () => {
                   /* ── Mode 2: Standard Login Form ── */
                   <>
                     {/* Continue with Google */}
-                    <GoogleAuthButton buttonText="continue_with" />
+                    <GoogleAuthButton buttonText="continue_with" onMfaRequired={handleGoogleLinkMfa} />
 
                     <div className="d-flex align-items-center my-3">
                       <hr className="flex-grow-1 border-secondary border-opacity-25 my-0" />
