@@ -98,6 +98,22 @@ pool.query('SELECT NOW()')
         CREATE INDEX IF NOT EXISTS idx_mentorship_goals_match ON mentorship_goals ("matchID");
         CREATE INDEX IF NOT EXISTS idx_mentorship_action_items_goal ON mentorship_action_items ("goalID");
 
+        -- Milestone review: mentee's submission evidence + full review history
+        ALTER TABLE mentorship_goals ADD COLUMN IF NOT EXISTS submission_note TEXT;
+        ALTER TABLE mentorship_goals ADD COLUMN IF NOT EXISTS evidence_url TEXT;
+        ALTER TABLE mentorship_goals ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE;
+
+        CREATE TABLE IF NOT EXISTS mentorship_goal_reviews (
+          "reviewID" SERIAL PRIMARY KEY,
+          "goalID" INT NOT NULL REFERENCES mentorship_goals("goalID") ON DELETE CASCADE,
+          "actorID" INT NOT NULL REFERENCES account("accountID") ON DELETE CASCADE,
+          action VARCHAR(30) NOT NULL CHECK (action IN ('submitted', 'approved', 'changes_requested', 'reopened')),
+          notes TEXT,
+          evidence_url TEXT,
+          "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_mentorship_goal_reviews_goal ON mentorship_goal_reviews ("goalID");
+
         ALTER TABLE account ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT TRUE;
 
         CREATE TABLE IF NOT EXISTS email_mfa_codes (

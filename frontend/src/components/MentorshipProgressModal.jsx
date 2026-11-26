@@ -35,6 +35,13 @@ const SMART_PRESETS = [
   },
 ];
 
+const HISTORY_LABELS = {
+  submitted: 'submitted for review',
+  approved: 'approved',
+  changes_requested: 'requested changes',
+  reopened: 'reopened',
+};
+
 export default function MentorshipProgressModal({ show, onHide, match, currentUser }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({
@@ -65,6 +72,15 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
   const [reviewNotes, setReviewNotes] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  // Mentee Submit-for-Review Modal state
+  const [submitGoalTarget, setSubmitGoalTarget] = useState(null);
+  const [submitNote, setSubmitNote] = useState('');
+  const [submitEvidence, setSubmitEvidence] = useState('');
+  const [submittingGoal, setSubmittingGoal] = useState(false);
+
+  // Which goals have their review history expanded
+  const [openHistory, setOpenHistory] = useState({});
+
   const matchId = match?.matchid || match?.matchID;
 
   // Determine if current user is the mentor for this match
@@ -81,6 +97,7 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
       setShowAddForm(false);
       setEditingGoalId(null);
       setReviewGoalTarget(null);
+      setSubmitGoalTarget(null);
       setError(null);
       setSuccessMsg(null);
     }
@@ -208,15 +225,50 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
     }
   };
 
-  // Mentee submits milestone for mentor review
-  const handleSubmitForReview = async (goal) => {
+  // Mentee opens the submit-for-review form
+  const handleSubmitForReview = (goal) => {
+    setSubmitGoalTarget(goal);
+    setSubmitNote('');
+    setSubmitEvidence('');
+  };
+
+  // Mentee sends the milestone to the mentor with a note and optional evidence link
+  const handleConfirmSubmit = async (e) => {
+    e.preventDefault();
+    if (!submitGoalTarget || !submitNote.trim()) return;
+
+    setSubmittingGoal(true);
+    setError(null);
     try {
-      await api.patch(`/progress/goals/${goal.goalID}`, { status: 'pending_review' });
+      await api.post(`/progress/goals/${submitGoalTarget.goalID}/submit`, {
+        note: submitNote.trim(),
+        evidence_url: submitEvidence.trim() || null,
+      });
+      setSuccessMsg(`"${submitGoalTarget.title}" submitted! Your mentor has been notified for review.`);
+      setSubmitGoalTarget(null);
       await fetchProgress();
-      setSuccessMsg(`"${goal.title}" submitted! Your mentor has been notified for review.`);
       setTimeout(() => setSuccessMsg(null), 3500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit milestone for review.');
+    } finally {
+      setSubmittingGoal(false);
+    }
+  };
+
+  // Mentor reopens an approved milestone
+  const handleReopenGoal = async (goal) => {
+    const notes = window.prompt(
+      `Reopen "${goal.title}"? The mentee will be able to change it again and resubmit.\n\nOptional reason:`,
+      ''
+    );
+    if (notes === null) return;
+    try {
+      await api.post(`/progress/goals/${goal.goalID}/reopen`, { notes: notes.trim() });
+      await fetchProgress();
+      setSuccessMsg(`"${goal.title}" reopened.`);
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to reopen milestone.');
     }
   };
 
@@ -262,9 +314,9 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
     try {
       const res = await api.patch(`/progress/items/${itemId}/toggle`);
       await fetchProgress();
-      if (res.data?.isPendingReview) {
-        setSuccessMsg('All tasks completed! Milestone submitted to your mentor for sign-off.');
-        setTimeout(() => setSuccessMsg(null), 3500);
+      if (res.data?.allGoalTasksCompleted && res.data?.item?.is_completed && !isMentor) {
+        setSuccessMsg('All tasks done! Click "Submit for Mentor Review" to send this milestone to your mentor.');
+        setTimeout(() => setSuccessMsg(null), 4000);
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update task.');
@@ -656,8 +708,11 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
               {data.goals.map((goal) => {
                 const isCompleted = goal.status === 'completed';
                 const isPendingReview = goal.status === 'pending_review';
+                const isLocked = isCompleted || isPendingReview;
                 const items = goal.action_items || [];
                 const itemsDone = items.filter((i) => i.is_completed).length;
+                const allTasksDone = itemsDone === items.length;
+                const history = goal.review_history || [];
                 const goalPercent = items.length > 0 ? Math.round((itemsDone / items.length) * 100) : isCompleted ? 100 : 0;
 
                 return (
@@ -732,26 +787,30 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                             📅 Target: {goal.target_date}
                           </span>
                         )}
-                        <Button
-                          size="sm"
-                          variant="link"
-                          className="p-1 text-themed-secondary"
-                          onClick={() => handleStartEdit(goal)}
-                          title="Edit milestone"
-                          style={{ textDecoration: 'none' }}
-                        >
-                          ✏️
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="link"
-                          className="p-1 text-danger"
-                          onClick={() => handleDeleteGoal(goal.goalID)}
-                          title="Delete milestone"
-                          style={{ textDecoration: 'none' }}
-                        >
-                          🗑️
-                        </Button>
+                        {!isLocked && (
+                          <Button
+                            size="sm"
+                            variant="link"
+                            className="p-1 text-themed-secondary"
+                            onClick={() => handleStartEdit(goal)}
+                            title="Edit milestone"
+                            style={{ textDecoration: 'none' }}
+                          >
+                            ✏️
+                          </Button>
+                        )}
+                        {(!isLocked || isMentor) && (
+                          <Button
+                            size="sm"
+                            variant="link"
+                            className="p-1 text-danger"
+                            onClick={() => handleDeleteGoal(goal.goalID)}
+                            title="Delete milestone"
+                            style={{ textDecoration: 'none' }}
+                          >
+                            🗑️
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -807,7 +866,10 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                               📋 Mentee Submitted This Milestone for Review
                             </span>
                             <span className="text-themed-secondary" style={{ fontSize: '0.75rem' }}>
-                              Inspect completed tasks and verify learning outcomes before approving.
+                              {goal.submitted_at
+                                ? `Submitted ${new Date(goal.submitted_at).toLocaleString()}. `
+                                : ''}
+                              Check the note and evidence below before approving.
                             </span>
                           </div>
                           <div className="d-flex gap-2">
@@ -830,6 +892,24 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                             </Button>
                           </div>
                         </div>
+                        {(goal.submission_note || goal.evidence_url) && (
+                          <div className="mt-2 pt-2 border-top" style={{ borderColor: 'var(--mp-border-subtle)', fontSize: '0.8rem' }}>
+                            {goal.submission_note && (
+                              <div className="text-themed-primary" style={{ whiteSpace: 'pre-line' }}>
+                                <span className="fw-bold">Mentee's note: </span>
+                                {goal.submission_note}
+                              </div>
+                            )}
+                            {goal.evidence_url && (
+                              <div className="mt-1">
+                                <span className="fw-bold text-themed-primary">Evidence: </span>
+                                <a href={goal.evidence_url} target="_blank" rel="noopener noreferrer" className="text-gold text-break">
+                                  {goal.evidence_url}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -845,7 +925,7 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                         }}
                       >
                         <span>⏳</span>
-                        <span>All tasks submitted for mentor verification. Your mentor has been notified to inspect and approve!</span>
+                        <span>Submitted for review. Your mentor has been notified. This milestone is locked until they approve it or request changes.</span>
                       </div>
                     )}
 
@@ -875,36 +955,45 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                           style={{ fontSize: '0.82rem' }}
                         >
                           <div
-                            className="d-flex align-items-center gap-2 cursor-pointer flex-grow-1"
-                            onClick={() => handleToggleItem(item.itemID)}
-                            style={{ cursor: 'pointer' }}
+                            className="d-flex align-items-center gap-2 flex-grow-1"
+                            onClick={isLocked ? undefined : () => handleToggleItem(item.itemID)}
+                            style={{ cursor: isLocked ? 'default' : 'pointer' }}
                           >
                             <input
                               type="checkbox"
                               checked={item.is_completed}
+                              disabled={isLocked}
                               onChange={() => {}} // Controlled by row click
                               className="form-check-input mt-0"
-                              style={{ cursor: 'pointer', accentColor: 'var(--mp-gold)' }}
+                              style={{ cursor: isLocked ? 'default' : 'pointer', accentColor: 'var(--mp-gold)' }}
                             />
                             <span
                               className={item.is_completed ? 'text-decoration-line-through text-muted' : 'text-themed-primary'}
                             >
                               {item.task_text}
                             </span>
+                            {item.is_completed && item.completed_at && (
+                              <span className="text-muted ms-1" style={{ fontSize: '0.7rem' }}>
+                                {new Date(item.completed_at).toLocaleDateString()}
+                              </span>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            className="btn btn-link text-muted p-0 ms-2 small"
-                            onClick={() => handleDeleteItem(item.itemID)}
-                            title="Remove item"
-                            style={{ textDecoration: 'none', fontSize: '0.85rem' }}
-                          >
-                            ✕
-                          </button>
+                          {!isLocked && (
+                            <button
+                              type="button"
+                              className="btn btn-link text-muted p-0 ms-2 small"
+                              onClick={() => handleDeleteItem(item.itemID)}
+                              title="Remove item"
+                              style={{ textDecoration: 'none', fontSize: '0.85rem' }}
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       ))}
 
                       {/* Inline Task Add Input */}
+                      {!isLocked && (
                       <div className="d-flex align-items-center gap-2 mt-2 pt-1">
                         <Form.Control
                           size="sm"
@@ -938,29 +1027,77 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                           {addingTaskForGoal === goal.goalID ? 'Adding...' : 'Add'}
                         </Button>
                       </div>
+                      )}
 
-                      {/* Bottom Milestone Action Bar (Submit for Review or Direct Sign-Off) */}
-                      {!isCompleted && (
+                      {/* Bottom Milestone Action Bar: mentee submits, mentor can reopen approved work */}
+                      {((!isMentor && !isLocked) || (isMentor && isCompleted)) && (
                         <div className="d-flex justify-content-end align-items-center gap-2 mt-2 pt-2 border-top" style={{ borderColor: 'var(--mp-border-subtle)' }}>
-                          {!isMentor && !isPendingReview && (
+                          {!isMentor && !isLocked && (
+                            <>
+                              {!allTasksDone && (
+                                <span className="text-muted" style={{ fontSize: '0.72rem' }}>
+                                  Finish all tasks to submit
+                                </span>
+                              )}
+                              <Button
+                                size="sm"
+                                className="btn-gold"
+                                disabled={!allTasksDone}
+                                onClick={() => handleSubmitForReview(goal)}
+                                style={{ fontSize: '0.75rem', padding: '0.28rem 0.75rem', borderRadius: 'var(--mp-radius-pill)' }}
+                              >
+                                📨 Submit for Mentor Review
+                              </Button>
+                            </>
+                          )}
+                          {isMentor && isCompleted && (
                             <Button
                               size="sm"
-                              className="btn-gold"
-                              onClick={() => handleSubmitForReview(goal)}
+                              variant="outline-secondary"
+                              className="btn-outline-gold"
+                              onClick={() => handleReopenGoal(goal)}
                               style={{ fontSize: '0.75rem', padding: '0.28rem 0.75rem', borderRadius: 'var(--mp-radius-pill)' }}
                             >
-                              📨 Submit for Mentor Review
+                              ↺ Reopen Milestone
                             </Button>
                           )}
-                          {isMentor && (
-                            <Button
-                              size="sm"
-                              className="btn-gold"
-                              onClick={() => handleOpenReviewModal(goal, 'approve')}
-                              style={{ fontSize: '0.75rem', padding: '0.28rem 0.75rem', borderRadius: 'var(--mp-radius-pill)' }}
-                            >
-                              ✓ Sign Off &amp; Approve
-                            </Button>
+                        </div>
+                      )}
+
+                      {/* Review History */}
+                      {history.length > 0 && (
+                        <div className="mt-2 pt-2 border-top" style={{ borderColor: 'var(--mp-border-subtle)' }}>
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 text-themed-secondary"
+                            style={{ fontSize: '0.75rem', textDecoration: 'none' }}
+                            onClick={() => setOpenHistory({ ...openHistory, [goal.goalID]: !openHistory[goal.goalID] })}
+                          >
+                            {openHistory[goal.goalID] ? '▾' : '▸'} Review history ({history.length})
+                          </button>
+                          {openHistory[goal.goalID] && (
+                            <ul className="list-unstyled mb-0 mt-1 ps-2" style={{ fontSize: '0.75rem' }}>
+                              {history.map((h) => (
+                                <li key={h.reviewID} className="mb-1">
+                                  <span className="text-muted">{new Date(h.createdAt).toLocaleString()}</span>{' '}
+                                  <strong className="text-themed-primary">{h.actor_name}</strong>{' '}
+                                  <span className="text-themed-secondary">{HISTORY_LABELS[h.action] || h.action}</span>
+                                  {h.notes && (
+                                    <span className="text-themed-primary fst-italic" style={{ whiteSpace: 'pre-line' }}>
+                                      {': '}"{h.notes}"
+                                    </span>
+                                  )}
+                                  {h.evidence_url && (
+                                    <>
+                                      {' '}
+                                      <a href={h.evidence_url} target="_blank" rel="noopener noreferrer" className="text-gold text-break">
+                                        (evidence)
+                                      </a>
+                                    </>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
                           )}
                         </div>
                       )}
@@ -1058,6 +1195,95 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                   'Confirm & Approve'
                 ) : (
                   'Send Revision Request'
+                )}
+              </Button>
+            </Modal.Footer>
+          </Form>
+        </Modal>
+      )}
+
+      {/* Mentee Submit-for-Review Modal */}
+      {submitGoalTarget && (
+        <Modal
+          show={Boolean(submitGoalTarget)}
+          onHide={() => setSubmitGoalTarget(null)}
+          centered
+          size="md"
+          contentClassName="card-glass-custom border-0 p-0 overflow-hidden shadow-lg"
+        >
+          <Modal.Header closeButton closeVariant="white" className="border-0 px-4 pt-4 pb-2" style={{ background: 'var(--mp-bg-surface)' }}>
+            <Modal.Title className="h6 fw-bold text-themed-primary mb-0">📨 Submit Milestone for Review</Modal.Title>
+          </Modal.Header>
+          <Form onSubmit={handleConfirmSubmit}>
+            <Modal.Body className="px-4 py-3">
+              <p className="small text-themed-secondary mb-3">
+                Milestone: <strong className="text-gold">{submitGoalTarget.title}</strong>
+              </p>
+
+              <Form.Group className="mb-3">
+                <Form.Label className="small text-themed-secondary mb-1">What did you complete? *</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  required
+                  maxLength={2000}
+                  placeholder="e.g. Built the login API with tests. The trickiest part was token refresh; I chose short-lived JWTs because..."
+                  value={submitNote}
+                  onChange={(e) => setSubmitNote(e.target.value)}
+                  style={{
+                    background: 'var(--mp-bg-input)',
+                    color: 'var(--mp-text-primary)',
+                    borderColor: 'var(--mp-border-subtle)',
+                    borderRadius: 'var(--mp-radius-input)',
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </Form.Group>
+
+              <Form.Group className="mb-1">
+                <Form.Label className="small text-themed-secondary mb-1">Link to your work (optional)</Form.Label>
+                <Form.Control
+                  type="url"
+                  maxLength={500}
+                  placeholder="https://github.com/... or a Google Doc / portfolio link"
+                  value={submitEvidence}
+                  onChange={(e) => setSubmitEvidence(e.target.value)}
+                  style={{
+                    background: 'var(--mp-bg-input)',
+                    color: 'var(--mp-text-primary)',
+                    borderColor: 'var(--mp-border-subtle)',
+                    borderRadius: 'var(--mp-radius-input)',
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </Form.Group>
+              <p className="text-muted mb-0" style={{ fontSize: '0.72rem' }}>
+                The milestone will be locked until your mentor approves it or asks for changes.
+              </p>
+            </Modal.Body>
+            <Modal.Footer className="border-0 px-4 pb-4 pt-1" style={{ background: 'var(--mp-bg-surface)' }}>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={() => setSubmitGoalTarget(null)}
+                style={{ borderRadius: 'var(--mp-radius-pill)' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="btn-gold"
+                disabled={submittingGoal || !submitNote.trim()}
+                style={{ borderRadius: 'var(--mp-radius-pill)' }}
+              >
+                {submittingGoal ? (
+                  <>
+                    <Spinner size="sm" animation="border" className="me-1" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit for Review'
                 )}
               </Button>
             </Modal.Footer>

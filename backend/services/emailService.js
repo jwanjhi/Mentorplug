@@ -385,11 +385,26 @@ MentorPlug
   }
 };
 
+/* Escape user-supplied text before placing it in email HTML */
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 /**
  * 5. Milestone Submitted for Review (Sent to Mentor)
  */
-const notifyMilestoneSubmittedForReview = async ({ mentorEmail, mentorName, menteeName, milestoneTitle }) => {
+const notifyMilestoneSubmittedForReview = async ({ mentorEmail, mentorName: rawMentorName, menteeName: rawMenteeName, milestoneTitle: rawTitle, submissionNote, evidenceUrl }) => {
   try {
+    const mentorName = escapeHtml(rawMentorName);
+    const menteeName = escapeHtml(rawMenteeName);
+    const milestoneTitle = escapeHtml(rawTitle);
+    const submissionHtml = `
+          ${submissionNote ? `<p style="margin: 10px 0 0 0; color: #334155; font-size: 14px; white-space: pre-line;"><strong>Mentee's note:</strong> ${escapeHtml(submissionNote)}</p>` : ''}
+          ${evidenceUrl ? `<p style="margin: 8px 0 0 0; font-size: 14px;"><strong>Evidence:</strong> <a href="${escapeHtml(evidenceUrl)}" style="color: #0A1128;">${escapeHtml(evidenceUrl)}</a></p>` : ''}`;
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -405,6 +420,7 @@ const notifyMilestoneSubmittedForReview = async ({ mentorEmail, mentorName, ment
         <div style="background-color: #f8fafc; border-left: 4px solid #D4AF37; padding: 16px 20px; border-radius: 6px; margin: 20px 0;">
           <h4 style="margin: 0; color: #0A1128; font-size: 16px;">🎯 ${milestoneTitle}</h4>
           <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">Status: Awaiting Mentor Approval</p>
+          ${submissionHtml}
         </div>
 
         <div style="text-align: center; margin: 28px 0;">
@@ -419,10 +435,10 @@ const notifyMilestoneSubmittedForReview = async ({ mentorEmail, mentorName, ment
     `;
 
     const textContent = `
-Hello ${mentorName},
+Hello ${rawMentorName},
 
-Your mentee ${menteeName} has submitted a milestone for your review: "${milestoneTitle}".
-
+Your mentee ${rawMenteeName} has submitted a milestone for your review: "${rawTitle}".
+${submissionNote ? `\nMentee's note: ${submissionNote}\n` : ''}${evidenceUrl ? `Evidence: ${evidenceUrl}\n` : ''}
 Please review and sign off on your dashboard: https://mentorplug.me/mentor-dashboard
 
 MentorPlug
@@ -430,7 +446,7 @@ MentorPlug
 
     await sendEmail({
       to: mentorEmail,
-      subject: `📋 Milestone Review Required: ${milestoneTitle} — MentorPlug`,
+      subject: `📋 Milestone Review Required: ${rawTitle} — MentorPlug`,
       text: textContent,
       html: htmlContent,
     });
@@ -442,8 +458,12 @@ MentorPlug
 /**
  * 6. Milestone Approved Notification (Sent to Mentee)
  */
-const notifyMilestoneApproved = async ({ menteeEmail, menteeName, mentorName, milestoneTitle, reviewNotes }) => {
+const notifyMilestoneApproved = async ({ menteeEmail, menteeName: rawMenteeName, mentorName: rawMentorName, milestoneTitle: rawTitle, reviewNotes: rawNotes }) => {
   try {
+    const menteeName = escapeHtml(rawMenteeName);
+    const mentorName = escapeHtml(rawMentorName);
+    const milestoneTitle = escapeHtml(rawTitle);
+    const reviewNotes = rawNotes ? escapeHtml(rawNotes) : null;
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -479,10 +499,10 @@ const notifyMilestoneApproved = async ({ menteeEmail, menteeName, mentorName, mi
     `;
 
     const textContent = `
-Hello ${menteeName},
+Hello ${rawMenteeName},
 
-Great work! ${mentorName} has reviewed and officially approved your milestone: "${milestoneTitle}"!
-${reviewNotes ? `Mentor Note: "${reviewNotes}"\n` : ''}
+Great work! ${rawMentorName} has reviewed and officially approved your milestone: "${rawTitle}"!
+${rawNotes ? `Mentor Note: "${rawNotes}"\n` : ''}
 Check your updated progress: https://mentorplug.me/recommendations
 
 MentorPlug
@@ -490,12 +510,70 @@ MentorPlug
 
     await sendEmail({
       to: menteeEmail,
-      subject: `🎉 Milestone Approved: ${milestoneTitle} — MentorPlug`,
+      subject: `🎉 Milestone Approved: ${rawTitle} — MentorPlug`,
       text: textContent,
       html: htmlContent,
     });
   } catch (err) {
     console.error('notifyMilestoneApproved error:', err.message);
+  }
+};
+
+/**
+ * 6b. Milestone Changes Requested (Sent to Mentee)
+ */
+const notifyMilestoneChangesRequested = async ({ menteeEmail, menteeName, mentorName, milestoneTitle, reviewNotes }) => {
+  try {
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #0A1128; margin: 0; font-size: 26px;">Mentor<span style="color: #D4AF37;">plug</span></h1>
+        </div>
+
+        <h2 style="color: #D97706; margin: 0 0 12px 0; font-size: 20px;">↺ Changes Requested on Your Milestone</h2>
+        <p style="color: #1e293b; font-size: 16px;">Hello <strong>${escapeHtml(menteeName)}</strong>,</p>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+          <strong>${escapeHtml(mentorName)}</strong> reviewed your milestone and asked for some changes before signing it off:
+        </p>
+
+        <div style="background-color: #fffbeb; border-left: 4px solid #D97706; padding: 16px 20px; border-radius: 6px; margin: 20px 0;">
+          <h4 style="margin: 0; color: #0A1128; font-size: 16px;">🎯 ${escapeHtml(milestoneTitle)}</h4>
+          <p style="margin: 10px 0 0 0; color: #92400e; font-size: 14px; white-space: pre-line;"><strong>What to change:</strong> ${escapeHtml(reviewNotes)}</p>
+        </div>
+
+        <p style="color: #475569; font-size: 15px; line-height: 1.6;">Make the changes, then submit the milestone for review again.</p>
+
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="https://mentorplug.me/recommendations" style="background-color: #D4AF37; color: #0A1128; padding: 12px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+            Open My Milestones →
+          </a>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0 16px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">MentorPlug • Quality Assurance in Mentorship</p>
+      </div>
+    `;
+
+    const textContent = `
+Hello ${menteeName},
+
+${mentorName} reviewed your milestone "${milestoneTitle}" and asked for changes:
+
+${reviewNotes}
+
+Make the changes, then submit it for review again: https://mentorplug.me/recommendations
+
+MentorPlug
+    `.trim();
+
+    await sendEmail({
+      to: menteeEmail,
+      subject: `↺ Changes Requested: ${milestoneTitle} — MentorPlug`,
+      text: textContent,
+      html: htmlContent,
+    });
+  } catch (err) {
+    console.error('notifyMilestoneChangesRequested error:', err.message);
   }
 };
 
@@ -612,6 +690,7 @@ module.exports = {
   notifyMenteeMatchAccepted,
   notifyMilestoneSubmittedForReview,
   notifyMilestoneApproved,
+  notifyMilestoneChangesRequested,
   notifyMfaOtp,
   testEmailConfig,
 };
