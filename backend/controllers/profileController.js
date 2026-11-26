@@ -309,7 +309,8 @@ const getMyProfile = async (req, res) => {
 
 /**
  * GET /api/profiles/:id
- * Returns a specific mentor's profile by their accountID.
+ * Returns a profile by accountID: your own, or someone you share a match with.
+ * Email, WhatsApp and LinkedIn are only included once the match is accepted.
  */
 const getProfileById = async (req, res) => {
   try {
@@ -318,34 +319,50 @@ const getProfileById = async (req, res) => {
       return res.status(404).json({ message: 'Profile not found' });
     }
 
-    const profileQuery = `
-      SELECT 
-        p."profileID",
-        p."accountID",
-        p.bio,
-        p.skills,
-        p.interests,
-        p.experience_years,
-        p.whatsapp,
-        p.linkedin_url,
-        p.avatar_url,
-        p.embedding,
-        COALESCE(p.phone_verified, FALSE) AS phone_verified,
-        p."updatedAt",
-        a.name,
-        a.email,
-        a.role
-      FROM profiles p
-      JOIN account a ON p."accountID" = a."accountID"
-      WHERE p."accountID" = $1
-    `;
-    const result = await pool.query(profileQuery, [accountID]);
+    const viewerID = req.user.accountID;
+    const isSelf = viewerID === accountID;
+
+    // Other people's profiles are only visible to someone they share a match with
+    // (a mentee's suggested/requested mentors, or a mentor's incoming requests).
+    let matchStatus = null;
+    if (!isSelf) {
+      const match = await pool.query(
+        `SELECT status FROM matches
+         WHERE ("menteeID" = $1 AND "mentorID" = $2)
+            OR ("mentorID" = $1 AND "menteeID" = $2 AND status IN ('pending', 'accepted', 'rejected'))
+         LIMIT 1`,
+        [viewerID, accountID]
+      );
+      if (!match.rows.length) {
+        return res.status(404).json({ message: 'Profile not found' });
+      }
+      matchStatus = match.rows[0].status;
+    }
+
+    const result = await pool.query(
+      `SELECT p."accountID", p.bio, p.skills, p.interests, p.experience_years,
+              p.whatsapp, p.linkedin_url, p.avatar_url,
+              COALESCE(p.phone_verified, FALSE) AS phone_verified, p."updatedAt",
+              a.name, a.email, a.role
+       FROM profiles p
+       JOIN account a ON p."accountID" = a."accountID"
+       WHERE p."accountID" = $1`,
+      [accountID]
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Profile not found' });
     }
 
-    return res.status(200).json(result.rows[0]);
+    const profile = result.rows[0];
+    // Contact details are shared only once the match is accepted
+    if (!isSelf && matchStatus !== 'accepted') {
+      profile.email = null;
+      profile.whatsapp = null;
+      profile.linkedin_url = null;
+    }
+
+    return res.status(200).json({ ...profile, match_status: matchStatus });
   } catch (error) {
     console.error('Error in getProfileById controller:', error);
     return res.status(500).json({ message: 'Server error fetching profile' });
