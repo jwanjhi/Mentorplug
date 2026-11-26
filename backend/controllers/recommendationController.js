@@ -116,7 +116,7 @@ const getRecommendations = async (req, res) => {
       mentor: {
         accountID: r.mentorID,
         name: r.name,
-        email: r.email,
+        email: r.status === 'accepted' ? r.email : null,
         profile: {
           bio: r.bio,
           skills: r.skills,
@@ -199,7 +199,7 @@ const runAndSaveRecommendations = async (req, res) => {
         mentor: {
           accountID: mentor.accountID,
           name:      mentor.name,
-          email:     mentor.email,
+          email:     upsertRows[0].status === 'accepted' ? mentor.email : null,
           profile: {
             bio:              mentor.bio,
             skills:           mentor.skills,
@@ -255,7 +255,7 @@ const getIncomingRequests = async (req, res) => {
       mentee: {
         accountID: r.menteeID,
         name: r.name,
-        email: r.email,
+        email: r.status === 'accepted' ? r.email : null,
         profile: {
           bio: r.bio,
           skills: r.skills,

@@ -25,7 +25,8 @@ router.post('/avatar', authMiddleware, ...uploadAvatar);
 // DELETE /api/profiles/avatar — remove profile photo
 router.delete('/avatar', authMiddleware, deleteAvatar);
 
-// GET /api/profiles/:id — public mentor profile by accountID
+// GET /api/profiles/:id — profile by accountID (self, or someone you share a match with;
+// contact details only once the match is accepted)
 router.get('/:id', authMiddleware, getProfileById);
 
 module.exports = router;

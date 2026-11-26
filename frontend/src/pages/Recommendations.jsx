@@ -6,6 +6,7 @@ import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
 import MentorshipProgressModal from '../components/MentorshipProgressModal';
+import ProfilePreviewModal from '../components/ProfilePreviewModal';
 import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
@@ -18,7 +19,7 @@ const cleanPhoneForWhatsApp = (rawPhone) => {
 };
 
 /* ── Single Mentor Card ───────────────────────────────────────────────────────── */
-const MentorCard = ({ match, onRequest, onRate, onProgress, user }) => {
+const MentorCard = ({ match, onRequest, onRate, onProgress, onView, user }) => {
   const score = Math.round((match.similarity_score ?? 0) * 100);
   const mentor = match.mentor;
 
@@ -65,6 +66,14 @@ const MentorCard = ({ match, onRequest, onRate, onProgress, user }) => {
           ? tags.map((t) => <span key={t} className="tag-gold-outline">{t}</span>)
           : <span className="text-themed-secondary small">No skills listed</span>}
       </div>
+
+      <button
+        type="button"
+        className="btn btn-link p-0 mb-3 align-self-start text-gold small fw-semibold text-decoration-none"
+        onClick={() => onView(match)}
+      >
+        View full profile →
+      </button>
 
       {/* Match bar */}
       <div className="pt-3 border-top border-secondary border-opacity-25">
@@ -298,6 +307,7 @@ export default function Recommendations() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [progressMatch, setProgressMatch] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [previewMatch, setPreviewMatch] = useState(null);
 
   const handleOpenProgress = (match) => {
     setProgressMatch(match);
@@ -453,12 +463,28 @@ export default function Recommendations() {
                 onRequest={openModal}
                 onRate={handleOpenFeedback}
                 onProgress={handleOpenProgress}
+                onView={setPreviewMatch}
                 user={user}
               />
             </Col>
           ))}
         </Row>
       )}
+
+      {/* Mentor profile preview (before requesting) */}
+      <ProfilePreviewModal
+        show={Boolean(previewMatch)}
+        onHide={() => setPreviewMatch(null)}
+        person={previewMatch?.mentor}
+        personRole="mentor"
+        score={previewMatch?.similarity_score}
+        connected={previewMatch?.status === 'accepted'}
+        actions={(!previewMatch?.status || previewMatch?.status === 'suggested') && (
+          <Button className="btn-gold" onClick={() => { const m = previewMatch; setPreviewMatch(null); openModal(m); }}>
+            ✦ Request Match
+          </Button>
+        )}
+      />
 
       {/* Request Modal */}
       <RequestModal

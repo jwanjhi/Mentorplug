@@ -77,3 +77,4 @@ flowchart LR
    - Universal email delivery via **Resend HTTPS REST API (Port 443)** completely resolves outbound SMTP port blocking on cloud hosts like Render.
 
 **Final Sprint 4 Verdict:** **All 12 Test Cases Passed (100% Success Rate).** Total recorded test suite for the dissertation now stands at **44 / 44 verified test cases** across Sprints 2, 3, and 4.
+

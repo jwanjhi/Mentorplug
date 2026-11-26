@@ -6,6 +6,7 @@ import api from '../services/api';
 import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
 import MentorshipProgressModal from '../components/MentorshipProgressModal';
+import ProfilePreviewModal from '../components/ProfilePreviewModal';
 import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
@@ -43,7 +44,7 @@ const StatusBadge = ({ status }) => {
 };
 
 /* ── Request Row ─────────────────────────────────────────────────────────── */
-const RequestRow = ({ match, onAccept, onDecline, onRate, onProgress, user }) => {
+const RequestRow = ({ match, onAccept, onDecline, onRate, onProgress, onView, user }) => {
   const mentee = match.mentee;
   const score = Math.round((match.similarity_score ?? 0) * 100);
 
@@ -77,6 +78,13 @@ const RequestRow = ({ match, onAccept, onDecline, onRate, onProgress, user }) =>
                 "{match.message}"
               </p>
             )}
+            <button
+              type="button"
+              className="btn btn-link p-0 mt-2 text-gold small fw-semibold text-decoration-none"
+              onClick={() => onView(match)}
+            >
+              View full profile →
+            </button>
           </div>
         </div>
 
@@ -190,6 +198,7 @@ export default function MentorDashboard() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [progressMatch, setProgressMatch] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [previewMatch, setPreviewMatch] = useState(null);
 
   const handleOpenProgress = (match) => {
     setProgressMatch(match);
@@ -228,6 +237,7 @@ export default function MentorDashboard() {
     try {
       await api.patch(`/recommendations/${matchid}/status`, { status: 'accepted' });
       setMatches((prev) => prev.map((m) => m.matchid === matchid ? { ...m, status: 'accepted' } : m));
+      loadMatches(); // contact details are only sent once a match is accepted
     } catch (err) {
       alert('Could not accept request. Please try again.');
     }
@@ -384,9 +394,35 @@ export default function MentorDashboard() {
           onDecline={handleDecline}
           onRate={handleOpenFeedback}
           onProgress={handleOpenProgress}
+          onView={setPreviewMatch}
           user={user}
         />
       ))}
+
+      {/* Mentee profile preview (before accepting) */}
+      <ProfilePreviewModal
+        show={Boolean(previewMatch)}
+        onHide={() => setPreviewMatch(null)}
+        person={previewMatch?.mentee}
+        personRole="mentee"
+        score={previewMatch?.similarity_score}
+        message={previewMatch?.message}
+        connected={previewMatch?.status === 'accepted'}
+        actions={previewMatch?.status === 'pending' && (
+          <>
+            <Button
+              size="sm"
+              onClick={() => { handleDecline(previewMatch.matchid); setPreviewMatch(null); }}
+              style={{ background: 'transparent', border: '1.5px solid var(--mp-border-subtle)', color: 'var(--mp-text-secondary)', borderRadius: 'var(--mp-radius-pill)', padding: '0.35rem 1rem', fontWeight: 600 }}
+            >
+              Decline
+            </Button>
+            <Button className="btn-gold" size="sm" onClick={() => { handleAccept(previewMatch.matchid); setPreviewMatch(null); }}>
+              Accept request
+            </Button>
+          </>
+        )}
+      />
 
       {/* Post-Engagement / Match Feedback Modal (Section 3.8.5) */}
       <FeedbackModal
