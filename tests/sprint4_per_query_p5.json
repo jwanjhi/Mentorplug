@@ -1,0 +1,104 @@
+{
+  "per_query_p5": [
+    {
+      "id": 1,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.8
+    },
+    {
+      "id": 2,
+      "sbert_p5": 0.2,
+      "tfidf_p5": 0.0
+    },
+    {
+      "id": 3,
+      "sbert_p5": 0.6,
+      "tfidf_p5": 0.8
+    },
+    {
+      "id": 4,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.4
+    },
+    {
+      "id": 5,
+      "sbert_p5": 0.6,
+      "tfidf_p5": 0.6
+    },
+    {
+      "id": 6,
+      "sbert_p5": 0.6,
+      "tfidf_p5": 0.6
+    },
+    {
+      "id": 7,
+      "sbert_p5": 0.6,
+      "tfidf_p5": 0.2
+    },
+    {
+      "id": 8,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.2
+    },
+    {
+      "id": 9,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.6
+    },
+    {
+      "id": 10,
+      "sbert_p5": 0.6,
+      "tfidf_p5": 0.8
+    },
+    {
+      "id": 11,
+      "sbert_p5": 0.0,
+      "tfidf_p5": 0.0
+    },
+    {
+      "id": 12,
+      "sbert_p5": 0.6,
+      "tfidf_p5": 0.4
+    },
+    {
+      "id": 13,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.4
+    },
+    {
+      "id": 14,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.4
+    },
+    {
+      "id": 15,
+      "sbert_p5": 0.2,
+      "tfidf_p5": 0.0
+    },
+    {
+      "id": 16,
+      "sbert_p5": 0.0,
+      "tfidf_p5": 0.0
+    },
+    {
+      "id": 17,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.4
+    },
+    {
+      "id": 18,
+      "sbert_p5": 0.2,
+      "tfidf_p5": 0.4
+    },
+    {
+      "id": 19,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.4
+    },
+    {
+      "id": 20,
+      "sbert_p5": 0.4,
+      "tfidf_p5": 0.4
+    }
+  ]
+}
