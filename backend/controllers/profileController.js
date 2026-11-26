@@ -329,7 +329,7 @@ const getProfileById = async (req, res) => {
       const match = await pool.query(
         `SELECT status FROM matches
          WHERE ("menteeID" = $1 AND "mentorID" = $2)
-            OR ("mentorID" = $1 AND "menteeID" = $2 AND status IN ('pending', 'accepted', 'rejected'))
+            OR ("mentorID" = $1 AND "menteeID" = $2 AND status IN ('pending', 'accepted', 'rejected', 'ended'))
          LIMIT 1`,
         [viewerID, accountID]
       );

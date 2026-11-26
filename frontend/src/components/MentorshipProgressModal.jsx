@@ -83,6 +83,9 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
 
   const matchId = match?.matchid || match?.matchID;
 
+  // Ended mentorships keep their milestones visible, but read-only
+  const ended = match?.status === 'ended';
+
   // Determine if current user is the mentor for this match
   const isMentor = Boolean(
     data.isMentor ||
@@ -394,6 +397,15 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
             </Alert>
           )}
 
+          {ended && (
+            <div
+              className="p-3 mb-3 rounded-3 small text-themed-secondary"
+              style={{ background: 'var(--mp-bg-surface)', border: '1px solid var(--mp-border-subtle)' }}
+            >
+              <strong className="text-themed-primary">This mentorship has ended.</strong> Milestones and review history are kept here for reference, but can no longer be changed.
+            </div>
+          )}
+
           {/* Progress Overview Card */}
           <div
             className="p-3 mb-4 rounded-3"
@@ -472,20 +484,22 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                   : 'Complete checklist tasks and submit for your mentor’s verification.'}
               </span>
             </div>
-            <Button
-              size="sm"
-              className="btn-gold d-flex align-items-center gap-1"
-              onClick={() => {
-                if (showAddForm) resetForm();
-                else setShowAddForm(true);
-              }}
-            >
-              <span>{showAddForm ? '✕ Close Form' : '+ Add Milestone'}</span>
-            </Button>
+            {!ended && (
+              <Button
+                size="sm"
+                className="btn-gold d-flex align-items-center gap-1"
+                onClick={() => {
+                  if (showAddForm) resetForm();
+                  else setShowAddForm(true);
+                }}
+              >
+                <span>{showAddForm ? '✕ Close Form' : '+ Add Milestone'}</span>
+              </Button>
+            )}
           </div>
 
           {/* Add / Edit Milestone Form */}
-          {showAddForm && (
+          {showAddForm && !ended && (
             <div
               className="p-3 mb-4 rounded-3 border"
               style={{
@@ -652,7 +666,11 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
           )}
 
           {/* Empty State with Smart Presets */}
-          {!loading && (!data.goals || data.goals.length === 0) && !showAddForm && (
+          {!loading && ended && (!data.goals || data.goals.length === 0) && (
+            <div className="text-center py-4 small text-themed-secondary">No milestones were set during this mentorship.</div>
+          )}
+
+          {!loading && !ended && (!data.goals || data.goals.length === 0) && !showAddForm && (
             <div
               className="text-center py-4 px-3 rounded-3 mb-3"
               style={{
@@ -708,7 +726,7 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
               {data.goals.map((goal) => {
                 const isCompleted = goal.status === 'completed';
                 const isPendingReview = goal.status === 'pending_review';
-                const isLocked = isCompleted || isPendingReview;
+                const isLocked = ended || isCompleted || isPendingReview;
                 const items = goal.action_items || [];
                 const itemsDone = items.filter((i) => i.is_completed).length;
                 const allTasksDone = itemsDone === items.length;
@@ -799,7 +817,7 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                             ✏️
                           </Button>
                         )}
-                        {(!isLocked || isMentor) && (
+                        {!ended && (!isLocked || isMentor) && (
                           <Button
                             size="sm"
                             variant="link"
@@ -852,7 +870,7 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                     )}
 
                     {/* Review Callout Banner for Mentor when Pending Review */}
-                    {isPendingReview && isMentor && (
+                    {isPendingReview && isMentor && !ended && (
                       <div
                         className="p-3 mb-2 rounded-3"
                         style={{
@@ -914,7 +932,7 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                     )}
 
                     {/* Mentee Pending Review Banner */}
-                    {isPendingReview && !isMentor && (
+                    {isPendingReview && !isMentor && !ended && (
                       <div
                         className="p-2 mb-2 rounded-2 d-flex align-items-center gap-2"
                         style={{
@@ -1030,7 +1048,7 @@ export default function MentorshipProgressModal({ show, onHide, match, currentUs
                       )}
 
                       {/* Bottom Milestone Action Bar: mentee submits, mentor can reopen approved work */}
-                      {((!isMentor && !isLocked) || (isMentor && isCompleted)) && (
+                      {!ended && ((!isMentor && !isLocked) || (isMentor && isCompleted)) && (
                         <div className="d-flex justify-content-end align-items-center gap-2 mt-2 pt-2 border-top" style={{ borderColor: 'var(--mp-border-subtle)' }}>
                           {!isMentor && !isLocked && (
                             <>

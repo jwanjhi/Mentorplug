@@ -130,6 +130,15 @@ pool.query('SELECT NOW()')
 
         -- Google ID to link once this OTP is verified (account linking flow)
         ALTER TABLE email_mfa_codes ADD COLUMN IF NOT EXISTS pending_google_id VARCHAR(255);
+
+        -- Ending a mentorship: who ended it, when and why (history is kept)
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS ended_by INT REFERENCES account("accountID") ON DELETE SET NULL;
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS end_reason VARCHAR(40);
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS end_reason_detail TEXT;
+        ALTER TABLE matches DROP CONSTRAINT IF EXISTS matches_status_check;
+        ALTER TABLE matches ADD CONSTRAINT matches_status_check
+          CHECK (status IN ('suggested', 'pending', 'accepted', 'rejected', 'ended'));
       `);
       console.log('Phone verification, progress tracking, and MFA schema verified successfully.');
     } catch (migErr) {

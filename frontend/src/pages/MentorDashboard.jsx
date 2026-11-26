@@ -7,6 +7,7 @@ import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
 import MentorshipProgressModal from '../components/MentorshipProgressModal';
 import ProfilePreviewModal from '../components/ProfilePreviewModal';
+import EndMentorshipModal from '../components/EndMentorshipModal';
 import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
@@ -33,6 +34,7 @@ const StatusBadge = ({ status }) => {
     pending:  { bg: 'rgba(201,168,76,0.12)',  color: 'var(--mp-gold)',   text: 'Pending' },
     accepted: { bg: 'rgba(34,197,94,0.12)',   color: '#4ADE80',          text: 'Accepted' },
     rejected: { bg: 'rgba(239,68,68,0.12)',   color: '#F87171',          text: 'Declined' },
+    ended:    { bg: 'rgba(148,163,184,0.12)', color: '#94A3B8',          text: 'Ended' },
     active:   { bg: 'rgba(56,189,248,0.12)',  color: '#38BDF8',          text: 'Active' },
   };
   const s = map[status] || map.pending;
@@ -43,8 +45,23 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+/* ── Ended mentorship summary ─────────────────────────────────────────────── */
+const EndedSummary = ({ ended, otherName }) => (
+  <div className="p-3 small mb-2" style={{ background: 'var(--mp-bg-surface)', border: '1px solid var(--mp-border-subtle)', borderRadius: 'var(--mp-radius-card)' }}>
+    <div className="fw-bold text-themed-primary mb-1">Mentorship ended</div>
+    <div className="text-themed-secondary" style={{ fontSize: '0.8rem' }}>
+      {ended?.by === 'you' ? 'You opted out' : ended?.by === 'them' ? `${otherName} opted out` : 'Ended'}
+      {ended?.at ? ` on ${new Date(ended.at).toLocaleDateString()}` : ''}
+      {ended?.reason_label ? ` · ${ended.reason_label}` : ''}
+    </div>
+    {ended?.detail && (
+      <div className="text-themed-secondary fst-italic mt-1" style={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>"{ended.detail}"</div>
+    )}
+  </div>
+);
+
 /* ── Request Row ─────────────────────────────────────────────────────────── */
-const RequestRow = ({ match, onAccept, onDecline, onRate, onProgress, onView, user }) => {
+const RequestRow = ({ match, onAccept, onDecline, onRate, onProgress, onView, onEnd, user }) => {
   const mentee = match.mentee;
   const score = Math.round((match.similarity_score ?? 0) * 100);
 
@@ -139,6 +156,39 @@ const RequestRow = ({ match, onAccept, onDecline, onRate, onProgress, onView, us
                 {match.feedback ? `★ ${match.feedback.rating}/5 Rated` : '★ Rate Session'}
               </Button>
             </div>
+            <button
+              type="button"
+              className="btn btn-link p-0 small text-decoration-none"
+              style={{ color: '#F87171', fontSize: '0.8rem' }}
+              onClick={() => onEnd(match)}
+            >
+              Opt out of mentorship
+            </button>
+          </div>
+        )}
+        {match.status === 'ended' && (
+          <div className="d-flex flex-column align-items-md-end gap-2" style={{ maxWidth: 360 }}>
+            <EndedSummary ended={match.ended} otherName={mentee?.name || 'Your mentee'} />
+            <div className="d-flex gap-2 flex-wrap">
+              <Button
+                variant="outline-secondary"
+                className="btn-outline-gold btn-sm"
+                size="sm"
+                onClick={() => onProgress(match)}
+                style={{ borderRadius: 'var(--mp-radius-pill)', padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+              >
+                🎯 Milestones
+              </Button>
+              <Button
+                variant="outline-secondary"
+                className="btn-outline-gold btn-sm"
+                size="sm"
+                onClick={() => onRate(match)}
+                style={{ borderRadius: 'var(--mp-radius-pill)', padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+              >
+                {match.feedback ? `★ ${match.feedback.rating}/5 Rated` : '★ Rate Session'}
+              </Button>
+            </div>
           </div>
         )}
         {match.status === 'rejected' && (
@@ -199,6 +249,7 @@ export default function MentorDashboard() {
   const [progressMatch, setProgressMatch] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [previewMatch, setPreviewMatch] = useState(null);
+  const [endMatch, setEndMatch] = useState(null);
 
   const handleOpenProgress = (match) => {
     setProgressMatch(match);
@@ -252,8 +303,22 @@ export default function MentorDashboard() {
     }
   };
 
+  /* Mentorship ended: hide contact details, then invite feedback */
+  const handleEnded = (match, ended) => {
+    const updated = {
+      ...match,
+      status: 'ended',
+      ended,
+      mentee: { ...match.mentee, email: null, profile: { ...match.mentee?.profile, whatsapp: null, linkedin_url: null } },
+    };
+    setMatches((prev) => prev.map((m) => (m.matchid === match.matchid ? updated : m)));
+    setEndMatch(null);
+    handleOpenFeedback(updated);
+  };
+
   const pending  = matches.filter((m) => m.status === 'pending');
   const accepted = matches.filter((m) => m.status === 'accepted');
+  const endedList = matches.filter((m) => m.status === 'ended');
   const filtered = filter === 'all' ? matches : matches.filter((m) => m.status === filter);
 
   const initials = user?.name
@@ -337,7 +402,7 @@ export default function MentorDashboard() {
       <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3">
         <h2 className="h5 fw-bold text-themed-primary mb-0" style={{ fontFamily: 'var(--font-heading)' }}>Connection Requests</h2>
         <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--mp-bg-input)', padding: '0.3rem', borderRadius: 'var(--mp-radius-pill)', border: '1px solid var(--mp-border-subtle)' }}>
-          {['all', 'pending', 'accepted'].map((f) => (
+          {['all', 'pending', 'accepted', 'ended'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -354,7 +419,7 @@ export default function MentorDashboard() {
                 transition: 'all 0.2s',
               }}
             >
-              {f === 'all' ? `All (${matches.length})` : f === 'pending' ? `Pending (${pending.length})` : `Accepted (${accepted.length})`}
+              {f === 'all' ? `All (${matches.length})` : f === 'pending' ? `Pending (${pending.length})` : f === 'accepted' ? `Accepted (${accepted.length})` : `Ended (${endedList.length})`}
             </button>
           ))}
         </div>
@@ -395,9 +460,19 @@ export default function MentorDashboard() {
           onRate={handleOpenFeedback}
           onProgress={handleOpenProgress}
           onView={setPreviewMatch}
+          onEnd={setEndMatch}
           user={user}
         />
       ))}
+
+      {/* End mentorship (with reason) */}
+      <EndMentorshipModal
+        show={Boolean(endMatch)}
+        match={endMatch}
+        role="mentor"
+        onHide={() => setEndMatch(null)}
+        onEnded={handleEnded}
+      />
 
       {/* Mentee profile preview (before accepting) */}
       <ProfilePreviewModal
