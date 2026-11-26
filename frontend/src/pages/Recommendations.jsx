@@ -7,6 +7,7 @@ import Avatar from '../components/Avatar';
 import FeedbackModal from '../components/FeedbackModal';
 import MentorshipProgressModal from '../components/MentorshipProgressModal';
 import ProfilePreviewModal from '../components/ProfilePreviewModal';
+import EndMentorshipModal from '../components/EndMentorshipModal';
 import { getWhatsAppUrl } from '../services/whatsappHelper';
 
 const cleanPhoneForWhatsApp = (rawPhone) => {
@@ -18,8 +19,23 @@ const cleanPhoneForWhatsApp = (rawPhone) => {
   return digits;
 };
 
+/* ── Ended mentorship summary ─────────────────────────────────────────────── */
+const EndedSummary = ({ ended, otherName }) => (
+  <div className="p-3 small mb-2" style={{ background: 'var(--mp-bg-surface)', border: '1px solid var(--mp-border-subtle)', borderRadius: 'var(--mp-radius-card)' }}>
+    <div className="fw-bold text-themed-primary mb-1">Mentorship ended</div>
+    <div className="text-themed-secondary" style={{ fontSize: '0.8rem' }}>
+      {ended?.by === 'you' ? 'You opted out' : ended?.by === 'them' ? `${otherName} opted out` : 'Ended'}
+      {ended?.at ? ` on ${new Date(ended.at).toLocaleDateString()}` : ''}
+      {ended?.reason_label ? ` · ${ended.reason_label}` : ''}
+    </div>
+    {ended?.detail && (
+      <div className="text-themed-secondary fst-italic mt-1" style={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>"{ended.detail}"</div>
+    )}
+  </div>
+);
+
 /* ── Single Mentor Card ───────────────────────────────────────────────────────── */
-const MentorCard = ({ match, onRequest, onRate, onProgress, onView, user }) => {
+const MentorCard = ({ match, onRequest, onRate, onProgress, onView, onEnd, onWithdraw, user }) => {
   const score = Math.round((match.similarity_score ?? 0) * 100);
   const mentor = match.mentor;
 
@@ -140,11 +156,57 @@ const MentorCard = ({ match, onRequest, onRate, onProgress, onView, user }) => {
                 ? `★ ${match.feedback.rating}/5 Rated • Update Review`
                 : '★ Rate Mentorship Session'}
             </Button>
+
+            <button
+              type="button"
+              className="btn btn-link w-100 mt-2 p-0 small text-decoration-none"
+              style={{ color: '#F87171', fontSize: '0.8rem' }}
+              onClick={() => onEnd(match)}
+            >
+              Opt out of mentorship
+            </button>
+          </div>
+        ) : match.status === 'ended' ? (
+          <div>
+            <EndedSummary ended={match.ended} otherName={mentor?.name || 'Your mentor'} />
+            <div className="d-flex gap-2">
+              <Button
+                variant="outline-secondary"
+                className="btn-outline-gold flex-fill"
+                size="sm"
+                onClick={() => onProgress(match)}
+                style={{ fontSize: '0.8rem', borderRadius: 'var(--mp-radius-pill)' }}
+              >
+                🎯 Milestones
+              </Button>
+              <Button
+                variant="outline-secondary"
+                className="btn-outline-gold flex-fill"
+                size="sm"
+                onClick={() => onRate(match)}
+                style={{ fontSize: '0.8rem', borderRadius: 'var(--mp-radius-pill)' }}
+              >
+                {match.feedback ? `★ ${match.feedback.rating}/5 Rated` : '★ Rate'}
+              </Button>
+            </div>
+            <Button className="btn-gold w-100 mt-2" size="sm" onClick={() => onRequest(match)}>
+              ✦ Request Again
+            </Button>
           </div>
         ) : match.status === 'pending' ? (
-          <Button className="btn-gold w-100" disabled style={{ opacity: 0.7, cursor: 'not-allowed' }}>
-            ⏳ Request Pending
-          </Button>
+          <div>
+            <Button className="btn-gold w-100" disabled style={{ opacity: 0.7, cursor: 'not-allowed' }}>
+              ⏳ Request Pending
+            </Button>
+            <button
+              type="button"
+              className="btn btn-link w-100 mt-2 p-0 small text-themed-secondary text-decoration-none"
+              style={{ fontSize: '0.8rem' }}
+              onClick={() => onWithdraw(match)}
+            >
+              Withdraw request
+            </button>
+          </div>
         ) : match.status === 'rejected' ? (
           <div className="text-center p-2 small" style={{ color: '#F87171', background: 'rgba(239,68,68,0.1)', borderRadius: 'var(--mp-radius-card)' }}>
             Match Declined
@@ -308,6 +370,7 @@ export default function Recommendations() {
   const [progressMatch, setProgressMatch] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [previewMatch, setPreviewMatch] = useState(null);
+  const [endMatch, setEndMatch] = useState(null);
 
   const handleOpenProgress = (match) => {
     setProgressMatch(match);
@@ -368,6 +431,30 @@ export default function Recommendations() {
     setMatches((prev) =>
       prev.map((m) => (m.matchid === match.matchid ? { ...m, status: 'pending' } : m))
     );
+  };
+
+  /* Withdraw a pending request (goes back to a suggestion) */
+  const handleWithdraw = async (match) => {
+    if (!window.confirm(`Withdraw your request to ${match.mentor?.name || 'this mentor'}?`)) return;
+    try {
+      await api.post(`/recommendations/${match.matchid}/withdraw`);
+      setMatches((prev) => prev.map((m) => (m.matchid === match.matchid ? { ...m, status: 'suggested' } : m)));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not withdraw the request. Please try again.');
+    }
+  };
+
+  /* Mentorship ended: hide contact details, then invite feedback */
+  const handleEnded = (match, ended) => {
+    const updated = {
+      ...match,
+      status: 'ended',
+      ended,
+      mentor: { ...match.mentor, email: null, profile: { ...match.mentor?.profile, whatsapp: null, linkedin_url: null } },
+    };
+    setMatches((prev) => prev.map((m) => (m.matchid === match.matchid ? updated : m)));
+    setEndMatch(null);
+    handleOpenFeedback(updated);
   };
 
   const openModal = (match) => {
@@ -464,6 +551,8 @@ export default function Recommendations() {
                 onRate={handleOpenFeedback}
                 onProgress={handleOpenProgress}
                 onView={setPreviewMatch}
+                onEnd={setEndMatch}
+                onWithdraw={handleWithdraw}
                 user={user}
               />
             </Col>
@@ -479,11 +568,20 @@ export default function Recommendations() {
         personRole="mentor"
         score={previewMatch?.similarity_score}
         connected={previewMatch?.status === 'accepted'}
-        actions={(!previewMatch?.status || previewMatch?.status === 'suggested') && (
+        actions={(!previewMatch?.status || ['suggested', 'ended'].includes(previewMatch?.status)) && (
           <Button className="btn-gold" onClick={() => { const m = previewMatch; setPreviewMatch(null); openModal(m); }}>
             ✦ Request Match
           </Button>
         )}
+      />
+
+      {/* End mentorship (with reason) */}
+      <EndMentorshipModal
+        show={Boolean(endMatch)}
+        match={endMatch}
+        role="mentee"
+        onHide={() => setEndMatch(null)}
+        onEnded={handleEnded}
       />
 
       {/* Request Modal */}

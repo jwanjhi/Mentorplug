@@ -35,7 +35,7 @@ const sendError = (res, err, label) => {
 /* ─────────────────────────────────────────────────────────────────────────────
    Helper: verify match existence, accepted status, and user participation
    ───────────────────────────────────────────────────────────────────────────── */
-const verifyMatchAccess = async (matchID, accountID) => {
+const verifyMatchAccess = async (matchID, accountID, { allowEnded = false } = {}) => {
   const matchRes = await pool.query(
     `SELECT m."matchID", m."menteeID", m."mentorID", m.status,
             mentee.name AS mentee_name, mentee.email AS mentee_email,
@@ -57,7 +57,11 @@ const verifyMatchAccess = async (matchID, accountID) => {
     throw httpError(403, 'You are not an authorized participant in this mentorship connection');
   }
 
-  if (match.status !== 'accepted') {
+  // Ended mentorships keep their milestone history readable, but nothing can change
+  if (match.status === 'ended' && !allowEnded) {
+    throw httpError(409, 'This mentorship has ended, so its milestones are read-only.');
+  }
+  if (match.status !== 'accepted' && match.status !== 'ended') {
     throw httpError(400, 'Progress tracking is only available for accepted mentorship connections');
   }
 
@@ -201,7 +205,7 @@ const getMatchProgress = async (req, res) => {
       return res.status(400).json({ error: 'Invalid match ID parameter' });
     }
 
-    const match = await verifyMatchAccess(matchID, accountID);
+    const match = await verifyMatchAccess(matchID, accountID, { allowEnded: true });
 
     const goalsRes = await pool.query(
       `SELECT g."goalID", g."matchID", g.title, g.description,

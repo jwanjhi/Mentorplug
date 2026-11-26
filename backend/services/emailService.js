@@ -578,6 +578,69 @@ MentorPlug
 };
 
 /**
+ * Mentorship ended (sent to the other participant)
+ */
+const notifyMentorshipEnded = async ({ toEmail, toName, toRole, endedByName, reasonLabel, detail }) => {
+  try {
+    const link = toRole === 'mentor' ? 'https://mentorplug.me/mentor-dashboard' : 'https://mentorplug.me/recommendations';
+    const nextStep = toRole === 'mentor'
+      ? 'Your milestones and feedback from this mentorship are still available on your dashboard.'
+      : 'Your milestones are still available, and you can find or request another mentor at any time.';
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #0A1128; margin: 0; font-size: 26px;">Mentor<span style="color: #D4AF37;">plug</span></h1>
+        </div>
+
+        <h2 style="color: #0A1128; margin: 0 0 12px 0; font-size: 20px;">Your mentorship has ended</h2>
+        <p style="color: #1e293b; font-size: 16px;">Hello <strong>${escapeHtml(toName)}</strong>,</p>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+          <strong>${escapeHtml(endedByName)}</strong> has opted out of your mentorship on MentorPlug.
+        </p>
+
+        <div style="background-color: #f8fafc; border-left: 4px solid #D4AF37; padding: 16px 20px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 0; color: #0A1128; font-size: 15px;"><strong>Reason:</strong> ${escapeHtml(reasonLabel)}</p>
+          ${detail ? `<p style="margin: 10px 0 0 0; color: #475569; font-size: 14px; white-space: pre-line;">${escapeHtml(detail)}</p>` : ''}
+        </div>
+
+        <p style="color: #475569; font-size: 15px; line-height: 1.6;">${nextStep} You can also leave feedback about the mentorship.</p>
+
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${link}" style="background-color: #D4AF37; color: #0A1128; padding: 12px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+            Open MentorPlug →
+          </a>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0 16px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">MentorPlug • Quality Assurance in Mentorship</p>
+      </div>
+    `;
+
+    const textContent = `
+Hello ${toName},
+
+${endedByName} has opted out of your mentorship on MentorPlug.
+
+Reason: ${reasonLabel}${detail ? `\n${detail}` : ''}
+
+${nextStep} You can also leave feedback about the mentorship: ${link}
+
+MentorPlug
+    `.trim();
+
+    await sendEmail({
+      to: toEmail,
+      subject: `${endedByName} has opted out of your mentorship — MentorPlug`,
+      text: textContent,
+      html: htmlContent,
+    });
+  } catch (err) {
+    console.error('notifyMentorshipEnded error:', err.message);
+  }
+};
+
+/**
  * 7. Two-Factor Authentication (MFA) OTP Email
  */
 const notifyMfaOtp = async ({ email, name, code }) => {
@@ -691,6 +754,7 @@ module.exports = {
   notifyMilestoneSubmittedForReview,
   notifyMilestoneApproved,
   notifyMilestoneChangesRequested,
+  notifyMentorshipEnded,
   notifyMfaOtp,
   testEmailConfig,
 };

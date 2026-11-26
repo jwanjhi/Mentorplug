@@ -34,8 +34,8 @@ const submitFeedback = async (req, res) => {
         return res.status(403).json({ error: 'You are not a participant in this match' });
       }
 
-      if (match.status !== 'accepted') {
-        return res.status(403).json({ error: 'Feedback can only be submitted for accepted mentorship connections.' });
+      if (match.status !== 'accepted' && match.status !== 'ended') {
+        return res.status(403).json({ error: 'Feedback can only be submitted for accepted or ended mentorship connections.' });
       }
 
       if (!targetReceiverID) {

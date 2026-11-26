@@ -2,7 +2,20 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
-const { notifyMenteeMatchAccepted, notifyIncomingMatchRequest } = require('../services/emailService');
+const { notifyMenteeMatchAccepted, notifyIncomingMatchRequest, notifyMentorshipEnded } = require('../services/emailService');
+
+/* Reasons for ending a mentorship. 'other' needs the person's own words. */
+const END_REASONS = {
+  goals_achieved:       { label: 'Goals achieved', roles: ['mentee', 'mentor'] },
+  schedule_conflict:    { label: 'Schedule or availability conflict', roles: ['mentee', 'mentor'] },
+  not_a_good_fit:       { label: 'Not a good fit', roles: ['mentee', 'mentor'] },
+  unresponsive:         { label: 'The other person stopped responding', roles: ['mentee', 'mentor'] },
+  found_another_mentor: { label: 'Found another mentor', roles: ['mentee'] },
+  focus_changed:        { label: 'My goals or interests changed', roles: ['mentee'] },
+  no_capacity:          { label: 'No longer have capacity to mentor', roles: ['mentor'] },
+  other:                { label: 'Other', roles: ['mentee', 'mentor'] },
+};
+const END_DETAIL_MAX = 500;
 
 /* ─────────────────────────────────────────────────────────────────────────────
    NLP helper – spawns nlp/recommend.py with JSON via stdin
@@ -92,6 +105,7 @@ const getRecommendations = async (req, res) => {
 
     const { rows } = await pool.query(
       `SELECT m."matchID" AS matchid, m."mentorID", m.similarity_score, m.status,
+              m.ended_by, m.ended_at, m.end_reason, m.end_reason_detail,
               a.name, a.email,
               p.bio, p.skills, p.interests, p.experience_years, p.avatar_url,
               p.whatsapp, p.linkedin_url,
@@ -109,6 +123,13 @@ const getRecommendations = async (req, res) => {
       matchid: r.matchid,
       similarity_score: r.similarity_score,
       status: r.status,
+      ended: r.status === 'ended' ? {
+        by: r.ended_by === null ? null : (r.ended_by === req.user.accountID ? 'you' : 'them'),
+        at: r.ended_at,
+        reason: r.end_reason,
+        reason_label: END_REASONS[r.end_reason]?.label || null,
+        detail: r.end_reason_detail,
+      } : null,
       feedback: r.feedback_rating ? {
         rating: r.feedback_rating,
         comment: r.feedback_comment
@@ -185,7 +206,7 @@ const runAndSaveRecommendations = async (req, res) => {
          ON CONFLICT ("menteeID", "mentorID") DO UPDATE
            SET similarity_score = EXCLUDED.similarity_score,
                status = CASE 
-                 WHEN matches.status IN ('pending', 'accepted', 'rejected') THEN matches.status 
+                 WHEN matches.status IN ('pending', 'accepted', 'rejected', 'ended') THEN matches.status 
                  ELSE 'suggested' 
                END,
                "createdAt"      = NOW()
@@ -230,6 +251,7 @@ const getIncomingRequests = async (req, res) => {
 
     const { rows } = await pool.query(
       `SELECT m."matchID" AS matchid, m."menteeID", m.similarity_score, m.status, m.message,
+              m.ended_by, m.ended_at, m.end_reason, m.end_reason_detail,
               a.name, a.email,
               p.bio, p.skills, p.interests, p.experience_years, p.avatar_url,
               p.whatsapp, p.linkedin_url,
@@ -238,7 +260,7 @@ const getIncomingRequests = async (req, res) => {
        JOIN   account a ON a."accountID" = m."menteeID"
        LEFT JOIN profiles p ON p."accountID" = m."menteeID"
        LEFT JOIN feedback f ON f."matchID" = m."matchID" AND f."giverID" = $1
-       WHERE  m."mentorID" = $1 AND m.status IN ('pending', 'accepted', 'rejected')
+       WHERE  m."mentorID" = $1 AND m.status IN ('pending', 'accepted', 'rejected', 'ended')
        ORDER  BY m."createdAt" DESC`,
       [mentorID]
     );
@@ -248,6 +270,13 @@ const getIncomingRequests = async (req, res) => {
       similarity_score: r.similarity_score,
       status: r.status,
       message: r.message,
+      ended: r.status === 'ended' ? {
+        by: r.ended_by === null ? null : (r.ended_by === req.user.accountID ? 'you' : 'them'),
+        at: r.ended_at,
+        reason: r.end_reason,
+        reason_label: END_REASONS[r.end_reason]?.label || null,
+        detail: r.end_reason_detail,
+      } : null,
       feedback: r.feedback_rating ? {
         rating: r.feedback_rating,
         comment: r.feedback_comment
@@ -292,10 +321,10 @@ const updateMatchStatus = async (req, res) => {
 
     const { rowCount } = await pool.query(
       `UPDATE matches SET status = $1
-       WHERE "matchID" = $2 AND "mentorID" = $3`,
+       WHERE "matchID" = $2 AND "mentorID" = $3 AND status = 'pending'`,
       [status, matchID, mentorID]
     );
-    if (!rowCount) return res.status(404).json({ error: 'Match not found or access denied' });
+    if (!rowCount) return res.status(404).json({ error: 'No pending request found for this match' });
 
     // When accepted, automatically dispatch email notification to the mentee
     if (status === 'accepted') {
@@ -346,11 +375,12 @@ const sendMatchRequest = async (req, res) => {
     const { message } = req.body || {};
 
     const { rowCount } = await pool.query(
-      `UPDATE matches SET status = 'pending', message = COALESCE($3, message)
-       WHERE "matchID" = $1 AND "menteeID" = $2`,
+      `UPDATE matches SET status = 'pending', message = COALESCE($3, message),
+              ended_by = NULL, ended_at = NULL, end_reason = NULL, end_reason_detail = NULL
+       WHERE "matchID" = $1 AND "menteeID" = $2 AND status IN ('suggested', 'ended')`,
       [matchID, menteeID, message ? message.trim() : null]
     );
-    if (!rowCount) return res.status(404).json({ error: 'Match not found or access denied' });
+    if (!rowCount) return res.status(404).json({ error: 'This mentor cannot be requested right now (already requested, connected or declined).' });
 
     // Asynchronously notify mentor of incoming request
     try {
@@ -382,12 +412,103 @@ const sendMatchRequest = async (req, res) => {
   }
 };
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /api/recommendations/:id/withdraw
+   Mentee withdraws a pending request; the match goes back to 'suggested'.
+   ───────────────────────────────────────────────────────────────────────────── */
+const withdrawRequest = async (req, res) => {
+  try {
+    if (req.user?.role !== 'mentee') return res.status(403).json({ error: 'Mentees only' });
+    const { rowCount } = await pool.query(
+      `UPDATE matches SET status = 'suggested', message = NULL
+       WHERE "matchID" = $1 AND "menteeID" = $2 AND status = 'pending'`,
+      [req.params.id, req.user.accountID]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'No pending request found to withdraw' });
+    return res.status(200).json({ message: 'Request withdrawn', status: 'suggested' });
+  } catch (err) {
+    console.error('withdrawRequest error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /api/recommendations/:id/end   { reason, detail }
+   Either participant ends an accepted mentorship. History is kept (read-only).
+   ───────────────────────────────────────────────────────────────────────────── */
+const endMentorship = async (req, res) => {
+  try {
+    const accountID = req.user?.accountID;
+    const role = req.user?.role;
+    const { reason } = req.body || {};
+    const detail = typeof req.body?.detail === 'string' ? req.body.detail.trim() : '';
+
+    const option = Object.prototype.hasOwnProperty.call(END_REASONS, reason) ? END_REASONS[reason] : null;
+    if (!option || !option.roles.includes(role)) {
+      return res.status(400).json({ error: 'Please choose a reason for opting out.' });
+    }
+    if (reason === 'other' && !detail) {
+      return res.status(400).json({ error: 'Please describe your reason.' });
+    }
+    if (detail.length > END_DETAIL_MAX) {
+      return res.status(400).json({ error: `Please keep the reason under ${END_DETAIL_MAX} characters.` });
+    }
+
+    // Atomic: only a participant, only while accepted (a double click can't end it twice)
+    const { rows } = await pool.query(
+      `UPDATE matches
+       SET status = 'ended', ended_by = $2, ended_at = NOW(), end_reason = $3, end_reason_detail = $4
+       WHERE "matchID" = $1 AND status = 'accepted' AND ($2 = "menteeID" OR $2 = "mentorID")
+       RETURNING "menteeID", "mentorID", ended_at`,
+      [req.params.id, accountID, reason, detail || null]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'No active mentorship found to opt out of' });
+    }
+
+    const { menteeID, mentorID, ended_at } = rows[0];
+    const otherID = accountID === menteeID ? mentorID : menteeID;
+    try {
+      const { rows: people } = await pool.query(
+        'SELECT "accountID", name, email, role FROM account WHERE "accountID" = ANY($1)',
+        [[accountID, otherID]]
+      );
+      const me = people.find((p) => p.accountID === accountID);
+      const other = people.find((p) => p.accountID === otherID);
+      if (me && other) {
+        notifyMentorshipEnded({
+          toEmail: other.email,
+          toName: other.name,
+          toRole: other.role,
+          endedByName: me.name,
+          reasonLabel: option.label,
+          detail: detail || null,
+        }).catch((e) => console.warn('Mentorship ended email error:', e.message));
+      }
+    } catch (notifyErr) {
+      console.error('Failed to notify about ended mentorship:', notifyErr.message);
+    }
+
+    return res.status(200).json({
+      message: 'You have opted out of the mentorship',
+      status: 'ended',
+      ended: { by: 'you', at: ended_at, reason, reason_label: option.label, detail: detail || null },
+    });
+  } catch (err) {
+    console.error('endMentorship error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
+
 module.exports = {
   getRecommendations,
   runAndSaveRecommendations,
   getIncomingRequests,
   updateMatchStatus,
   sendMatchRequest,
+  withdrawRequest,
+  endMentorship,
+  END_REASONS,
   getRecommendationsFromPython,
   formatProfileText
 };
